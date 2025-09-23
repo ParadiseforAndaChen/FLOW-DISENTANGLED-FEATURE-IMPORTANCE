@@ -9,7 +9,7 @@ from torchdiffeq import odeint
 
 
 class ResidualMLPBlock(nn.Module):
-    def __init__(self, dim: int, scale: float = 1.0, use_bn: bool = True):
+    def __init__(self, dim: int, scale: float = 1.0, use_bn: bool = False):
         super().__init__()
         self.use_bn = use_bn
         self.fc1 = nn.Linear(dim, dim)
