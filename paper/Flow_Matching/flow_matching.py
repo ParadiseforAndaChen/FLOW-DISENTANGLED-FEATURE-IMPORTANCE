@@ -92,17 +92,16 @@ class FlowMatchingModel:
     
 
     def flow_matching_loss(self, x0, x1, t):
-        # Compute the interpolated point along the trajectory for each t
+
         xt = (1 - t) * x0 + t * x1
 
-        # Compute the ground truth velocity vector (constant across trajectory)
+
         v_target = x1 - x0
 
-        # Predict the velocity at point (x(t), t) using the model
+
         v_pred = self.model(xt, t)
 
-        # Compute squared error between predicted and true velocity at each sample
-        # Then average over the entire batch
+
         return ((v_pred - v_target) ** 2).mean()
 
     def fit(self, num_steps=20000, batch_size=512, lr=5e-4, show_plot=True):
@@ -117,7 +116,7 @@ class FlowMatchingModel:
             t = torch.rand(batch_size, 1, device=self.device)
 
             loss = self._loss_fn(x0, x1, t)
-            #loss = self.flow_matching_loss(x0, x1, t)
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -166,58 +165,10 @@ class FlowMatchingModel:
             t_expand = torch.ones(x.size(0), 1, device=self.device) * t
             return self.model(x, t_expand)
     
-        #out = odeint(odefunc, x0, t, rtol=1e-5, atol=1e-5, method='rk4')
+
         out = odeint(odefunc, x0, t, rtol=1e-3, atol=1e-5, method='dopri5')
 
         return out[-1]
-
-
-
-
-
-
-        
-    
-
-
-    
-    def Jacobi_O(self, y0, t_span=(0, 1)):
-        self.model.eval()
-        if isinstance(y0, torch.Tensor):
-            y0 = y0.detach().cpu().numpy()
-
-        def ode_aug(t, y):
-            x = y[:self.dim]
-            J = y[self.dim:].reshape(self.dim, self.dim)
-
-            xt = torch.from_numpy(x).float().unsqueeze(0).to(self.device).requires_grad_(True)
-            tt = torch.tensor([[t]], dtype=torch.float32, device=self.device)
-
-            vt = self.model(xt, tt).squeeze(0)
-
-
-            from torch.func import jacrev
-
-            A = jacrev(lambda x_: self.model(x_, tt).squeeze(0))(xt).squeeze(0).detach()
-
-            dxdt = vt.detach()
-            dJdt = torch.matmul(A, torch.tensor(J, dtype=torch.float32, device=self.device))
-
-            return torch.cat([dxdt, dJdt.reshape(-1)]).cpu().numpy()
-
-        sol = solve_ivp(
-            ode_aug,
-            t_span=t_span,
-            y0=y0,
-            t_eval=[t_span[1]],
-            atol=1e-5,
-            rtol=1e-5,
-        )
-        y1 = sol.y[:, -1]
-        J1 = y1[self.dim:].reshape(self.dim, self.dim)
-        return J1
-    
-    
 
 
     
@@ -260,4 +211,3 @@ class FlowMatchingModel:
 
 
     
-
