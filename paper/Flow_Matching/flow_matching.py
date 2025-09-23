@@ -180,7 +180,7 @@ class FlowMatchingModel:
 
         x0 = torch.tensor(y0[:self.dim], dtype=torch.float32, device=self.device)
         J0 = torch.eye(self.dim, dtype=torch.float32, device=self.device).flatten()
-        y0_torch = torch.cat([x0, J0])  # shape: (d + d^2,)
+        y0_torch = torch.cat([x0, J0])  
 
         def odefunc_aug(t, y_aug):
             x = y_aug[:self.dim]
@@ -201,7 +201,6 @@ class FlowMatchingModel:
 
         t = torch.tensor(t_span, dtype=torch.float32, device=self.device)
         y_aug_out = odeint(odefunc_aug, y0_torch, t, rtol=1e-3, atol=1e-5, method='dopri5')
-        #y_aug_out = odeint(odefunc_aug, y0_torch, t, rtol=1e-5, atol=1e-5, method='dopri5')
 
         y1 = y_aug_out[-1]
         J1 = y1[self.dim:].reshape(self.dim, self.dim).detach().cpu().numpy()
