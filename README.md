@@ -30,7 +30,6 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
 
 7. **Exp6**: Implementation of the experiments in Appendix D.4.  
    Run `computation_time.py` and `computation_time_shapley.py` to generate the results for different methods.
-   
    Use `Exp6_plot.py` to generate the corresponding figures.
 
 9. **Exp7**: Implementation of the experiments in Appendix E.2.  
