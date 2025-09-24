@@ -23,7 +23,10 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `CTG.ipynb` to execute the experiments and obtain the corresponding results and figures.
 
 5. **Exp4**: Implementation of the experiments in Appendix D.3.1.  
-   Run `Correction.ipynb` to generate the results and plot the figure.  
+   Run `Correction.ipynb` to generate the results.
+
+6. **Exp5**: Implementation of the experiments in Appendix D.2.  
+   Run `Correction.ipynb` to generate the results.  
 
 
 
