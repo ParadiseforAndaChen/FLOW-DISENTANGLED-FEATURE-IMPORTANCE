@@ -236,7 +236,7 @@ class CPIEstimator(ImportanceEstimator):
     permuter: any = field(default_factory=lambda:
     make_pipeline(
         StandardScaler(),
-        LassoLarsIC(criterion="bic")  # 或 "bic"
+        LassoLarsIC(criterion="bic")  
     )
     )
     
