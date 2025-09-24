@@ -7,4 +7,6 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
 
 ## Description
 ### Description of folders
-1. Exp1: Implement of the experiments in Section 4.1
+1. **Exp1**: Implementation of the experiments in Section 4.1.  
+   Run `Exp1.py` to test different combinations of sample size and $\rho$.  
+   For summarizing the final results, run `Exp1_plot.py` to generate the corresponding figures.  
