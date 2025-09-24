@@ -26,7 +26,10 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `Correction.ipynb` to generate the results.
 
 6. **Exp5**: Implementation of the experiments in Appendix D.2.  
-   Run `MMD_combination.py` and `MMD_sample_size.py` to generate the results.  
+   Run `MMD_combination.py` and `MMD_sample_size.py` to generate the results.
+
+7. **Exp6**: Implementation of the experiments in Appendix D.4.  
+   Run `MMD_combination.py` and `MMD_sample_size.py` to generate the results.
 
 
 
