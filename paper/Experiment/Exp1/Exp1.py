@@ -68,7 +68,7 @@ for run in range(1, num_runs + 1):
     import torch
     import matplotlib.pyplot as plt
     
-    from Inference.data import Complex_example_5
+    from Inference.data import Exp1
     from sklearn.neural_network import MLPRegressor
     from sklearn.linear_model import LinearRegression
     from sklearn.ensemble import GradientBoostingRegressor
@@ -79,7 +79,7 @@ for run in range(1, num_runs + 1):
     
     seed = np.random.randint(0, 1000)  
     rho = 0.8
-    X_full, y = Complex_example_5().generate(3000, rho, seed)
+    X_full, y = Exp1().generate(3000, rho, seed)
     
     D=X_full.shape[1]
     
@@ -107,7 +107,7 @@ for run in range(1, num_runs + 1):
 
 
 
-    X_full, y = Complex_example_5().generate(1000, rho, seed) 
+    X_full, y = Exp1().generate(1000, rho, seed) 
     
 
 
@@ -119,7 +119,7 @@ for run in range(1, num_runs + 1):
     from Inference.estimators import LOCOEstimator, SCPI_Flow_Model_Estimator
     
     from sklearn.ensemble import RandomForestRegressor
-    from sklearn.ensemble import GradientBoostingRegressor
+
     
 
     
@@ -138,14 +138,14 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_0_loco, std_0_loco = estimator1.importance(X_full, y)
+    phi_0_loco, se_0_loco = estimator1.importance(X_full, y)
     
 
     phi_0_loco_test = phi_0_loco 
 
-    std_0_loco_test = std_0_loco 
+    se_0_loco_test = se_0_loco 
     
-    z_score_0_loco = phi_0_loco_test / std_0_loco_test
+    z_score_0_loco = phi_0_loco_test / se_0_loco_test
     
     p_value_0_loco = 1 - norm.cdf(z_score_0_loco)
     rounded_p_value_0_loco = np.round(p_value_0_loco, 3)
@@ -161,23 +161,22 @@ for run in range(1, num_runs + 1):
                 max_depth=None,
                 min_samples_leaf=5,
                 random_state=seed,
-                #random_state=42,
                 n_jobs=n_jobs
                 ),
         flow_model=model
     )
 
     
-    phi_x_loco, std_x_loco = estimator3.importance(X_full, y)
+    phi_x_loco, se_x_loco = estimator3.importance(X_full, y)
     
 
     
 
     phi_x_loco_test = phi_x_loco 
 
-    std_x_loco_test = std_x_loco 
+    se_x_loco_test = se_x_loco 
     
-    z_score_x_loco = phi_x_loco_test / std_x_loco_test
+    z_score_x_loco = phi_x_loco_test / se_x_loco_test
     
     p_value_x_loco = 1 - norm.cdf(z_score_x_loco)
     rounded_p_value_x_loco = np.round(p_value_x_loco, 3)
@@ -227,8 +226,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_loco)):
             txtfile.write(
-                          f"{phi_0_loco[i]:.6f}\t{std_0_loco[i]:.6f}\t"
-                          f"{phi_x_loco[i]:.6f}\t{std_x_loco[i]:.6f}\n")
+                          f"{phi_0_loco[i]:.6f}\t{se_0_loco[i]:.6f}\t"
+                          f"{phi_x_loco[i]:.6f}\t{se_x_loco[i]:.6f}\n")
 
 
 
@@ -258,22 +257,21 @@ for run in range(1, num_runs + 1):
                 max_depth=None,
                 min_samples_leaf=5,
                 random_state=seed,
-                #random_state=42,
                 n_jobs=n_jobs
                 )
 
     )
 
     
-    phi_x_dfi, std_x_dfi = estimator4.importance(X_full, y)
+    phi_x_dfi, se_x_dfi = estimator4.importance(X_full, y)
     
 
     
     phi_x_dfi_test = phi_x_dfi 
 
-    std_x_dfi_test = std_x_dfi 
+    se_x_dfi_test = se_x_dfi 
     
-    z_score_x_dfi = phi_x_dfi_test / std_x_dfi_test
+    z_score_x_dfi = phi_x_dfi_test / se_x_dfi_test
     
     p_value_x_dfi = 1 - norm.cdf(z_score_x_dfi)
     rounded_p_value_x_dfi = np.round(p_value_x_dfi, 3)
@@ -318,7 +316,7 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_x\tstd_x\n")
         for i in range(len(phi_x_dfi)):
             txtfile.write(
-                          f"{phi_x_dfi[i]:.6f}\t{std_x_dfi[i]:.6f}\n")
+                          f"{phi_x_dfi[i]:.6f}\t{se_x_dfi[i]:.6f}\n")
 
 
 
@@ -354,14 +352,14 @@ for run in range(1, num_runs + 1):
     )
 
 
-    phi_0_cpi, std_0_cpi = estimator6.importance(X_full, y)
+    phi_0_cpi, se_0_cpi = estimator6.importance(X_full, y)
 
     
     phi_0_cpi_test = phi_0_cpi 
 
-    std_0_cpi_test = std_0_cpi 
+    se_0_cpi_test = se_0_cpi 
 
-    z_score_0_cpi = phi_0_cpi_test / std_0_cpi_test
+    z_score_0_cpi = phi_0_cpi_test / se_0_cpi_test
     
     p_value_0_cpi = 1 - norm.cdf(z_score_0_cpi)
     rounded_p_value_0_cpi = np.round(p_value_0_cpi, 3)
@@ -377,7 +375,6 @@ for run in range(1, num_runs + 1):
                  max_depth=None,
                  min_samples_leaf=5,
                  random_state=seed,
-                 #random_state=42,
                  n_jobs=n_jobs
                  ),
         flow_model=model
@@ -385,14 +382,14 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_x_cpi, std_x_cpi = estimator8.importance(X_full, y)
+    phi_x_cpi, se_x_cpi = estimator8.importance(X_full, y)
     
 
     phi_x_cpi_test = phi_x_cpi 
 
-    std_x_cpi_test = std_x_cpi 
+    se_x_cpi_test = se_x_cpi 
     
-    z_score_x_cpi = phi_x_cpi_test / std_x_cpi_test
+    z_score_x_cpi = phi_x_cpi_test / se_x_cpi_test
     
     
     p_value_x_cpi = 1 - norm.cdf(z_score_x_cpi)
@@ -441,8 +438,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_cpi)):
             txtfile.write(
-                          f"{phi_0_cpi[i]:.6f}\t{std_0_cpi[i]:.6f}\t"
-                          f"{phi_x_cpi[i]:.6f}\t{std_x_cpi[i]:.6f}\n")
+                          f"{phi_0_cpi[i]:.6f}\t{se_0_cpi[i]:.6f}\t"
+                          f"{phi_x_cpi[i]:.6f}\t{se_x_cpi[i]:.6f}\n")
             
     with open(csv_path_cpi, mode='a', newline='') as f:
         writer = csv.writer(f)
@@ -458,4 +455,3 @@ for run in range(1, num_runs + 1):
 
     
     
-
