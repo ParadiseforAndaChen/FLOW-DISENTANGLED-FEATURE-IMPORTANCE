@@ -1,0 +1,910 @@
+from .utils import *
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.covariance import MinCovDet
+from sklearn.model_selection import KFold
+from sklearn.base import clone
+import copy
+import time
+from typing import List
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from joblib import Parallel, delayed
+from tqdm import trange
+from tqdm import tqdm
+from tqdm_joblib import tqdm_joblib
+import matplotlib.pyplot as plt
+
+
+
+
+@dataclass
+class ImportanceEstimator(abc.ABC):
+
+    random_state: int = 0
+    regressor: any = field(default_factory=lambda: RandomForestRegressor(
+        n_estimators=500,
+        max_depth=None,
+        min_samples_leaf=5,
+        random_state=0,
+        n_jobs=-1
+    ))
+    use_cross_fitting: bool = True
+    n_folds: int = 2
+    name: str = field(init=False)  
+
+    @abc.abstractmethod
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        ...
+
+    def importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]:
+        if not self.use_cross_fitting:
+            self.n_folds = 1
+        return self._cross_fit_importance(X, y, j, **kwargs)
+        
+
+    def _cross_fit_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]:
+
+        if self.n_folds < 2:
+            indices = [(np.arange(X.shape[0]), np.arange(X.shape[0]))]  
+        else:
+            kf = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
+            indices = kf.split(X)
+
+        ueifs = np.zeros((X.shape[0], X.shape[1]))
+        ueifs_Z = np.zeros((X.shape[0], X.shape[1]))
+        n_eifs = np.zeros(X.shape[0])
+
+        for train_idx, test_idx in indices:
+            X_train, X_test = X[train_idx], X[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+            
+
+            fold_estimator = copy.deepcopy(self)
+            fold_estimator.fit(X_train, y_train, j)
+            
+            fi, ueif, _ = fold_estimator._single_fold_importance(X_test, y_test, j, **kwargs)########
+
+            ueifs[test_idx, :] += ueif
+            if self.name == "DFI": ueifs_Z[test_idx, :] += fold_estimator.ueifs_Z
+            n_eifs[test_idx] += 1
+
+        ueifs = ueifs / n_eifs[:, None]
+        self.ueifs = ueifs # (n,d)
+
+        id_null_features = np.mean(ueifs, axis=0) < 0
+        ueifs[:, id_null_features] = 0
+        fi = np.nanmean(ueifs, axis=0) # (d,)
+        
+
+        var = np.nanvar(ueifs, axis=0, ddof=1)   
+
+        var_y = float(np.nanvar(y, ddof=1))
+  
+
+
+        c = min(np.sqrt(var_y), var_y, var_y**2, var_y**4) /  ( (X.shape[1])**2 )
+       
+
+        sigma = np.sqrt(var + c) + 1e-9
+
+        sqn_eff = np.sqrt(len(X))
+        if self.n_folds > 1: sqn_eff *= np.sqrt((self.n_folds - 1) / self.n_folds)
+        se = sigma / sqn_eff
+
+
+        if j is None:
+            return fi, se
+        else:
+            return fi[j], se[j]
+
+    def _single_fold_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+        """
+        Compute importance for a single fold.
+        
+        Returns:
+            importance_scores: Array of shape [d] with importance for all features
+            ueif: Array of shape [n, d] with uncentered EIF for all features
+        """
+        n, d = X.shape
+        
+        if j is not None:
+            # Single feature importance
+            return self._compute_single_feature_importance(X, y, j, **kwargs)
+        else:
+            # All features importance
+            importance_scores = np.zeros(d)
+            ueif = np.full_like(X, np.nan, dtype=float)
+            
+            for j in range(d):
+                importance_scores[j], ueif[:, j] = self._compute_single_feature_importance(X, y, j, **kwargs)
+
+            return importance_scores, ueif
+
+    @abc.abstractmethod
+    def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None) -> Tuple[float, np.ndarray]:
+        """
+        Compute importance of feature j for a single fold.
+        
+        Returns:
+            scalar
+        """
+        ...
+
+
+###############################################################################
+#
+# CPI
+#
+###############################################################################
+
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Union
+import numpy as np
+from sklearn.base import clone
+from sklearn.utils import shuffle
+from tqdm import tqdm
+
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LassoLarsIC
+
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LassoCV
+from sklearn.model_selection import KFold
+
+@dataclass
+class CPIEstimator(ImportanceEstimator):
+
+    name: str = field(default="CPI_Foldwise", init=False)
+
+    permuter: any = field(default_factory=lambda:
+    make_pipeline(
+        StandardScaler(),
+        LassoLarsIC(criterion="bic")  
+    )
+    )
+    
+    B: int = 50
+    random_state: Optional[int] = None
+    show_tqdm: bool = True
+
+ 
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        self.mu_hat = clone(self.regressor)
+        self.mu_hat.fit(X, y)
+        return self
+
+
+    def _single_fold_importance(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        j: Optional[int] = None,
+        **kwargs
+    ) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+
+        n, d = X.shape
+
+        pred_full = self.mu_hat.predict(X)    
+        loss_full = (y - pred_full) ** 2      
+
+        ueifs = np.zeros((n, d)) if (j is None) else np.zeros((n, 1))
+        feats = range(d) if j is None else [j]
+        iterator = feats
+        if self.show_tqdm and (j is None) and d > 1:
+            iterator = tqdm(feats, desc="CPI conditional permutation")
+
+        base_seed = self.random_state if self.random_state is not None else np.random.randint(0, 10**6)
+
+
+        for idx, jj in enumerate(iterator):
+            X_minus_j = np.delete(X, jj, axis=1)
+            x_j = X[:, jj]
+
+            rg = clone(self.permuter)
+            rg.fit(X_minus_j, x_j)
+            x_j_hat = rg.predict(X_minus_j)
+            eps = x_j - x_j_hat
+
+            X_tilde = np.tile(X[None, :, :], (self.B, 1, 1))
+            for b in range(self.B):
+                eps_perm = shuffle(eps, random_state=base_seed + jj * 1_000_003 + b)
+                X_tilde[b, :, jj] = x_j_hat + eps_perm
+            X_tilde_flat = X_tilde.reshape(-1, d)                 
+            y_tilde_flat = self.mu_hat.predict(X_tilde_flat)     
+            y_tilde = y_tilde_flat.reshape(self.B, n)             
+            loss_tilde = (y[None, :] - y_tilde) ** 2             
+
+
+            delta = loss_tilde - loss_full[None, :]               
+            ueif_j = 0.5 * delta.mean(axis=0)                     
+
+            if j is None:
+                ueifs[:, jj] = ueif_j
+            else:
+                ueifs[:, 0] = ueif_j
+
+        if j is None:
+            phi_all = np.maximum(np.mean(ueifs, axis=0), 0.0)      # (d,)
+            return phi_all, ueifs
+        else:
+            phi_j = float(max(np.mean(ueifs[:, 0]), 0.0))
+            return phi_j, ueifs[:, 0]
+
+    def _compute_single_feature_importance(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        j: int,
+        **kwargs
+    ) -> Tuple[float, np.ndarray]:
+        phi_j, ueif_j = self._single_fold_importance(X, y, j=j, **kwargs)
+        return phi_j, ueif_j
+
+
+
+
+
+
+
+import time
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Union, Callable, Dict
+
+import numpy as np
+from numpy.random import default_rng
+from sklearn.base import clone
+from sklearn.utils import shuffle
+from joblib import Parallel, delayed
+from tqdm.auto import tqdm
+
+
+
+@dataclass
+class CPI_Flow_Model_Estimator_correction_new(  
+    ImportanceEstimator  
+):
+    name: str = field(default="CPI_Flow_Model", init=False)
+
+
+    flow_model: Optional[any] = None
+    regressor: any = field(default=None)  
+
+    B: int = 50
+    sampling_method: str = "resample"  # {"resample","permutation","normal","condperm"}
+    permuter: any = field(default_factory=lambda: LinearRegression())
+
+    random_state: Optional[int] = None
+    show_tqdm: bool = True
+
+    n_jobs_jac: int = 30
+    prefer_backend: str = "threads"  
+    s_mean_max_samples: int = 0
+    lock_S_mean: bool = True  
+    S_mean_: Optional[np.ndarray] = field(default=None, init=False)  
+
+    Z_full: Optional[np.ndarray] = field(default=None, init=False)
+
+    ueifs_raw_matrix_: Optional[np.ndarray] = field(default=None, init=False)  
+    ueifs_raw_cols_: Dict[int, np.ndarray] = field(default_factory=dict, init=False)  
+
+    # ======================= 工具函数 =======================
+    def _ensure_fitted(self):
+        if not hasattr(self, "mu_hat"):
+            raise RuntimeError("Estimator is None, fit(X, y)。")
+        if self.flow_model is None:
+            raise RuntimeError("flow_model is not set.")
+
+    def reset_S_mean(self):
+
+        self.S_mean_ = None
+
+    def _encode_to_Z(self, X: np.ndarray, flow=None) -> np.ndarray:
+        assert (flow or self.flow_model) is not None, "flow_model is not set."
+        import torch
+        if flow is None:
+            flow = self.flow_model
+        with torch.no_grad():
+            Z = flow.sample_batch(X, t_span=(1, 0)).cpu().numpy()
+        return Z
+
+    def _decode_to_X(self, Z: np.ndarray) -> np.ndarray:
+        assert self.flow_model is not None, "flow_model is not set."
+        import torch
+        with torch.no_grad():
+            X_hat = self.flow_model.sample_batch(Z, t_span=(0, 1)).cpu().numpy()
+        return X_hat
+
+    def _J_squared_at(self, flow, z_row: np.ndarray) -> np.ndarray:
+
+        D = z_row.shape[0]
+        y0 = np.concatenate([z_row, np.eye(D).reshape(-1)])
+        J = flow.Jacobi_N(y0=y0)  # (D, D)
+        return J ** 2
+
+    def _compute_S_mean(self, Z: np.ndarray) -> np.ndarray:
+        n, D = Z.shape
+
+        if 0 < self.s_mean_max_samples < n:
+            rng = np.random.default_rng(self.random_state)
+            idx = rng.choice(n, self.s_mean_max_samples, replace=False)
+            Z_sub = Z[idx]
+        else:
+            Z_sub = Z
+
+        def _jac_square(z_row: np.ndarray) -> np.ndarray:
+            y0 = np.concatenate([z_row, np.eye(D).reshape(-1)])
+            J = self.flow_model.Jacobi_N(y0=y0)   
+            return J ** 2
+
+        if self.prefer_backend == "none":
+            S_list = [_jac_square(z) for z in Z_sub]  
+        elif self.prefer_backend == "processes":
+            S_list = Parallel(n_jobs=self.n_jobs_jac, prefer="processes")(
+                delayed(_jac_square)(z) for z in Z_sub
+            )
+        else:
+            S_list = Parallel(n_jobs=self.n_jobs_jac, prefer="threads")(
+                delayed(_jac_square)(z) for z in Z_sub
+            )
+
+        S_array = np.stack(S_list, axis=0)  
+        return S_array.mean(axis=0)        
+
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        assert self.flow_model is not None, "flow_model is not set."
+
+        self.mu_hat = clone(self.regressor)
+        self.mu_hat.fit(X, y)
+
+        if self.sampling_method == "resample":
+            self.Z_full = self._encode_to_Z(X)
+        else:
+            self.Z_full = None
+
+        if not self.lock_S_mean:
+            self.S_mean_ = None 
+        self.ueifs_raw_matrix_ = None
+        self.ueifs_raw_cols_.clear()
+        return self
+
+    def _single_fold_importance(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        j: Optional[int] = None,
+        **kwargs
+    ) -> Union[
+        Tuple[float, np.ndarray, np.ndarray],         
+        Tuple[np.ndarray, np.ndarray, np.ndarray]     
+    ]:
+
+        n, d = X.shape
+        Z = self._encode_to_Z(X)         
+        X_hat = self._decode_to_X(Z)      
+
+        pred_full = self.mu_hat.predict(X_hat)   
+        loss_full = (y - pred_full) ** 2         
+
+        ueifs = np.zeros((n, d))  
+        iterator = range(d) if j is None else [j]
+        if self.show_tqdm and (j is None) and d > 1:
+            iterator = tqdm(iterator, desc=f"CPI@Z ({self.sampling_method}) → decode → X")
+
+        base_seed = self.random_state if self.random_state is not None else 0
+
+        for jj in iterator:
+            rng = default_rng(base_seed + jj)
+            B = self.B
+            Z_tilde = np.tile(Z[None, :, :], (B, 1, 1))  # (B, n, d)
+
+            if self.sampling_method == "resample":
+                resample_indices = rng.choice(self.Z_full.shape[0], size=(B, n), replace=True)
+                Z_tilde[:, :, jj] = self.Z_full[resample_indices, jj]
+            elif self.sampling_method == "permutation":
+                perm_indices = np.array([rng.permutation(n) for _ in range(B)])
+                Z_tilde[:, :, jj] = Z[perm_indices, jj]
+            elif self.sampling_method == "normal":
+                Z_tilde[:, :, jj] = rng.normal(0, 1, size=(B, n))
+            elif self.sampling_method == "condperm":
+                Z_minus_j = np.delete(Z, jj, axis=1)
+                z_j = Z[:, jj]
+                rg = clone(self.permuter)
+                rg.fit(Z_minus_j, z_j)
+                z_j_hat = rg.predict(Z_minus_j)
+                eps_z = z_j - z_j_hat
+                for b in range(B):
+                    eps_perm = shuffle(eps_z, random_state=base_seed + 1000003 * (jj + 1) + b)
+                    Z_tilde[b, :, jj] = z_j_hat + eps_perm
+            else:
+                raise ValueError(f"Unknown sampling_method: {self.sampling_method}")
+
+            Z_tilde_flat = Z_tilde.reshape(-1, d)
+            Xhat_tilde_flat = self._decode_to_X(Z_tilde_flat)
+            y_tilde_flat = self.mu_hat.predict(Xhat_tilde_flat)
+            y_tilde = y_tilde_flat.reshape(B, n)
+            loss_tilde = (y[None, :] - y_tilde) ** 2
+
+            delta = loss_tilde - loss_full[None, :]
+            avg_loss_per_sample = delta.mean(axis=0)  
+            ueifs[:, jj] = 0.5 * avg_loss_per_sample
+
+        need_recompute = (self.S_mean_ is None) or (not self.lock_S_mean and j is None)
+        if need_recompute:
+            t0 = time.time()
+            self.S_mean_ = self._compute_S_mean(Z)  
+            t1 = time.time()
+            print(f"[S_mean] computed in {t1 - t0:.3f}s; Fro={np.linalg.norm(self.S_mean_):.4f}")
+        else:
+            print("[S_mean] cached, skip computing.")
+
+        ueifs_mapped = ueifs @ self.S_mean_.T   
+
+        if j is None:
+            self.ueifs_raw_matrix_ = ueifs.copy()
+            self.ueifs_raw_cols_.update({jj: ueifs[:, jj].copy() for jj in range(d)})
+            phi_all = np.maximum(np.mean(ueifs_mapped, axis=0), 0.0)  
+            return phi_all, ueifs_mapped, ueifs
+        else:
+            self.ueifs_raw_cols_[j] = ueifs[:, j].copy()
+            phi_j = float(max(np.mean(ueifs_mapped[:, j]), 0.0))
+            return phi_j, ueifs_mapped[:, j], ueifs[:, j]
+
+
+    def _compute_single_feature_importance(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        j: int,
+        **kwargs
+    ) -> Tuple[float, np.ndarray, np.ndarray]:
+        phi_j, ueif_mapped_j, ueif_raw_j = self._single_fold_importance(X, y, j=j, **kwargs)
+        return phi_j, ueif_mapped_j, ueif_raw_j
+
+    def diff_mapped_minus_correction(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        retrain: str = "loo",
+        n_splits: int = 2,
+        retrain_flow: Optional[Callable[[np.ndarray], any]] = None,
+        train_kwargs: Optional[dict] = None,
+        random_state: Optional[int] = None,
+    ) -> Dict[str, np.ndarray]:
+
+        self._ensure_fitted()
+        if train_kwargs is None:
+            train_kwargs = {}
+
+        phi_all, ueifs_mapped, ueifs_raw = self._single_fold_importance(X, y, j=None)  # (d), (n,d), (n,d)
+        print(ueifs_mapped.mean(axis=0))
+
+        ueifs = ueifs_raw  
+        n, d = ueifs.shape
+
+
+        Z_full = self._encode_to_Z(X, flow=self.flow_model)
+        H_full_tensor = np.empty((n, d, d), dtype=float)
+        iterator = range(n)
+        if self.show_tqdm and n > 1:
+            iterator = tqdm(iterator, desc="Compute H_full J^2 per sample", leave=False, total=n)
+        for i in iterator:
+            J2_T = self._J_squared_at(self.flow_model, Z_full[i]).T
+            H_full_tensor[i] = J2_T
+
+        H_minus_tensor = np.empty((n, d, d), dtype=float)
+        scale_vec = np.empty(n, dtype=float)
+
+        def _fit_new_flow(X_tr: np.ndarray):
+            if retrain_flow is not None:
+                return retrain_flow(X_tr)
+            if not hasattr(self.flow_model, "clone"):
+                raise RuntimeError(" retrain_flow")
+            f = self.flow_model.clone()
+            f.fit(X_tr, **train_kwargs)
+            return f
+
+        if retrain == "loo":
+            for i in range(n):
+                mask = np.ones(n, dtype=bool); mask[i] = False
+                X_tr = X[mask]
+                print(f"[LOO] {i+1}/{n}", flush=True)
+                f = _fit_new_flow(X_tr)
+                Zi = self._encode_to_Z(X[i:i+1], flow=f)
+                H_minus_tensor[i] = self._J_squared_at(f, Zi[0]).T
+                scale_vec[i] = (n - 1)
+        elif retrain == "kfold":
+            from sklearn.model_selection import KFold
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+            for fold_id, (train_idx, test_idx) in enumerate(kf.split(X), 1):
+                X_tr = X[train_idx]
+                f = _fit_new_flow(X_tr)
+                Z_fold = self._encode_to_Z(X[test_idx], flow=f)
+                m = len(test_idx)
+                inner_iter = enumerate(test_idx)
+                if self.show_tqdm and m > 1:
+                    inner_iter = tqdm(enumerate(test_idx),
+                                      total=m,
+                                      desc=f"H_minus per-sample (fold {fold_id}/{n_splits})",
+                                      leave=False)
+                for local_i, i in inner_iter:
+                    H_minus_tensor[i] = self._J_squared_at(f, Z_fold[local_i]).T
+                    scale_vec[i] = (n - m)
+        else:
+            raise ValueError("retrain has to be 'loo' or 'kfold'。")
+
+
+        I_tensor = (scale_vec[:, None, None]) * (H_full_tensor - H_minus_tensor)  
+
+        
+        Wc = ueifs - ueifs.mean(axis=0, keepdims=True)                 
+        Ic = I_tensor - I_tensor.mean(axis=0, keepdims=True)           
+        cov_contrib = (Wc[:, :, None] * Ic) / (n - 1)                  
+
+        correction_ps = cov_contrib.sum(axis=1)                        
+        diff_mapped_ps = ueifs_mapped - correction_ps                  
+
+        return {
+            "ueifs_mapped": ueifs_mapped,
+            "correction_ps": correction_ps,
+            "diff_mapped_ps": diff_mapped_ps,
+            "cov_contrib": cov_contrib,
+        }
+
+
+
+
+
+
+
+@dataclass
+class LOCOEstimator(ImportanceEstimator):
+    mu_full: any = field(default=None, init=False)
+    mu_reduced: any = field(default=None, init=False)
+    name: str = field(default="LOCO", init=False)
+
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        self.mu_full = clone(self.regressor)
+        self.mu_full.fit(X, y)
+        
+
+        self.mu_reduced = [clone(self.regressor) for _ in range(X.shape[1])]
+        if j is not None:
+            self.mu_reduced[j].fit(np.delete(X, j, axis=1), y)
+        else:
+            for j in range(X.shape[1]):
+                self.mu_reduced[j].fit(np.delete(X, j, axis=1), y)
+        
+        return self
+
+    def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
+
+        pred_full = self.mu_full.predict(X)
+        X_reduced = np.delete(X, j, axis=1)
+        pred_reduced = self.mu_reduced[j].predict(X_reduced)
+        ueif = (y - pred_reduced)**2 - (y - pred_full)**2 
+        loco = float(max(ueif.mean(axis=0), 0.0))
+        return loco, ueif
+
+
+
+
+@dataclass
+class nLOCOEstimator(LOCOEstimator):
+    mu_full: any = field(default=None, init=False)
+    mu_reduced: any = field(default=None, init=False)
+    nu: any = field(default=None, init=False)
+    name: str = field(default="nLOCO", init=False)
+
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        super().fit(X, y, j)
+
+        self.nu = [clone(self.regressor) for _ in range(X.shape[1])]
+        if j is not None:
+            self.nu[j].fit(np.delete(X, j, axis=1), X[:, j])
+        else:
+            for j in range(X.shape[1]):
+                self.nu[j].fit(np.delete(X, j, axis=1), X[:, j])
+            
+        return self
+    
+    def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
+        raw_importance, ueif = super()._compute_single_feature_importance(X, y, j)
+
+
+        cond_var = self._compute_conditional_variance(X, j)
+        ueif /= np.sqrt(cond_var)
+        return raw_importance / cond_var if cond_var > 0 else np.nan, ueif
+
+    def _compute_conditional_variance(self, X: np.ndarray, j: int) -> float:
+        W = X[:, j]
+        Z = np.delete(X, j, axis=1)
+        nu_pred = self.nu[j].predict(Z)
+        residuals = W - nu_pred
+        return float(np.maximum(np.mean(residuals ** 2), 1e-8))
+
+
+@dataclass
+class dLOCOEstimator(LOCOEstimator):
+    reps: int = 1000
+    batch_size: int = 32
+    mu_full: any = field(default=None, init=False)
+    var: np.ndarray = field(default=None, init=False)
+    name: str = field(default="dLOCO", init=False)
+
+    def fit(self, X: ndarray, y: ndarray, j: Optional[int] = None):
+        super().fit(X, y, j)
+        if self.var is None:
+            self.var = np.var(X, axis=0, ddof=1)
+        return self
+    
+    def _single_fold_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+        vi, ueif = super()._single_fold_importance(X, y, j)
+        var = self.var if j is None else self.var[j]
+        ueif = ueif / np.sqrt(var)
+        return vi / var, ueif
+
+    def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
+        n, d = X.shape
+        rng = default_rng(self.random_state + j)  
+
+        id_j = rng.choice(n, size=min(self.reps, n), replace=False)
+
+        original_preds = self.mu_full.predict(X[id_j])
+
+        mu0_j_values = np.zeros(len(id_j))
+
+        for batch_start in range(0, len(id_j), self.batch_size):
+            batch_end = min(batch_start + self.batch_size, len(id_j))
+            batch_ids = id_j[batch_start:batch_end]
+            current_batch_size = len(batch_ids)
+            
+            Z_batch = np.zeros((current_batch_size, n, d))
+            
+            for i, j_ref in enumerate(batch_ids):
+                Z_batch[i, :, :] = np.tile(X[j_ref:j_ref+1], (n, 1))
+                Z_batch[i, :, j] = X[:, j]
+            
+            Z_batch_flat = Z_batch.reshape(-1, d)
+            preds_batch = self.mu_full.predict(Z_batch_flat)
+            preds_batch = preds_batch.reshape(current_batch_size, n)
+            mu0_j_values[batch_start:batch_end] = np.mean(preds_batch, axis=1)
+
+        U_values = (original_preds - mu0_j_values)**2
+        uinf = np.full((n,), np.nan, dtype=float)  
+        uinf[:U_values.shape[0]] = U_values
+        return float(np.mean(U_values)), uinf
+
+
+
+@dataclass
+class ShapleyEstimator(LOCOEstimator):
+    n_mc: int = 100
+    random_state: Optional[int] = 42
+    exact: bool = False  
+    name: str = field(default="Shapley", init=False)
+
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
+        self.X_train_ = X
+        self.y_train_ = y
+        self.d = X.shape[1]
+
+        self.mu_full = clone(self.regressor).fit(X, y)
+
+        self._model_cache: Dict[Tuple[int, ...], any] = {}
+
+        return self
+
+    def compute_coalition_and_weight(self, S, j):
+        S = tuple(sorted(S))               
+        Sj = tuple(sorted(S + (j,)))       
+        size_S = len(S)
+        weight = 1 / (math.comb(self.d - 1, size_S) * self.d)
+        return (S, Sj), weight
+
+    def _fit_cached(self, feats: Tuple[int, ...]):
+        if feats in self._model_cache:
+            return self._model_cache[feats]
+
+        if len(feats) == 0:                 
+            class _MeanModel:
+                def __init__(self, c): self.c = float(c)
+                def predict(self, X): return np.full(len(X), self.c)
+            mdl = _MeanModel(self.y_train_.mean())
+        else:
+            mdl = clone(self.regressor).fit(self.X_train_[:, feats], self.y_train_)
+
+        self._model_cache[feats] = mdl
+        return mdl
+
+
+    def _compute_single_feature_importance(
+        self, X_test: np.ndarray, y_test: np.ndarray, j: int
+    ) -> Tuple[float, np.ndarray]:
+
+        n_test, d = X_test.shape
+        
+        all_S = [(size, S) for size in range(self.d) for S in combinations([i for i in range(self.d) if i != j], size)]
+
+        results = Parallel(n_jobs=-1)(
+            delayed(self.compute_coalition_and_weight)(S, j) for _, S in all_S
+        )
+
+        coalitions, weights = zip(*results)
+        weights = np.array(weights, dtype=float)
+        
+        if not self.exact:
+            def sample_coalitions_with_weights(coalitions: List[Tuple[Tuple[int, ...], Tuple[int, ...]]], weights: np.ndarray, n_samples: int, rng: np.random.Generator) -> List[Tuple[Tuple[int, ...], Tuple[int, ...]]]:
+
+                sampled_indices = rng.choice(len(coalitions), size=n_samples, replace=True, p=weights/weights.sum())
+                return [coalitions[i] for i in sampled_indices]
+
+            rng = default_rng(None if self.random_state is None else self.random_state + j)
+            coalitions = sample_coalitions_with_weights(coalitions, weights, self.n_mc, rng)
+            weights = np.ones(len(coalitions)) / len(coalitions)  
+        
+        def compute_contrib(S: Tuple[int, ...], Sj: Tuple[int, ...]) -> Tuple[float, np.ndarray]:
+            mu_S  = self._fit_cached(S)
+            mu_Sj = self._fit_cached(Sj)
+
+            pred_S  = mu_S.predict( X_test[:, S]  if len(S)  else X_test )
+            pred_Sj = mu_Sj.predict(X_test[:, Sj])
+
+            contrib = (pred_Sj - pred_S) ** 2 
+            psi_r   = contrib.mean()
+            return psi_r, contrib
+
+        results = Parallel(n_jobs=-1)(
+            delayed(compute_contrib)(S, Sj) for S, Sj in coalitions
+        )
+
+        psi_draws, contribs = zip(*results)
+        psi_draws = np.array(psi_draws) * weights 
+        contribs = np.array(contribs) * weights[:, None] 
+
+        psi_hat = float(np.sum(psi_draws)) 
+        ueif = contribs.sum(axis=0) 
+
+        return psi_hat, ueif
+
+
+
+
+
+@dataclass
+class DFIZEstimator(ImportanceEstimator):
+
+    regularize: float = 1e-6
+    name: str = field(default="DFI_Z", init=False)
+    
+
+    mean: np.ndarray | None = field(default=None, init=False)  
+    cov: np.ndarray | None = field(default=None, init=False)  
+    L: np.ndarray | None = field(default=None, init=False)
+    L_inv: np.ndarray | None = field(default=None, init=False)
+
+    mu_full: any = field(default=None, init=False)  
+    Z_full: np.ndarray | None = field(default=None, init=False) 
+    
+    n_samples : int = 50  
+
+    refit_cov: bool = False  
+    refit_mu: bool = True  
+
+
+
+    robust: bool = False  
+    support_fraction: float = 0.8  
+    sampling_method: str = 'resample'  
+    
+    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):        
+
+        if self.refit_cov or (self.L is None or self.L_inv is None):
+            if self.robust:
+                cov = MinCovDet(support_fraction=self.support_fraction, random_state=self.random_state).fit(X)
+                self.mean = cov.location_[None, :]
+                self.cov = cov.covariance_
+            else:
+                self.mean = np.mean(X, axis=0, keepdims=True)
+                self.cov = np.cov(X - self.mean, rowvar=False, ddof=0) 
+                self.cov = (self.cov+self.cov.T)/2
+        
+            eigenvals, eigenvecs = np.linalg.eigh(self.cov)
+            eigenvals = np.maximum(eigenvals, self.regularize)
+          
+            self.L = eigenvecs @ np.diag(eigenvals**0.5) @ eigenvecs.T
+        
+            self.L_inv = eigenvecs @ np.diag(eigenvals**-0.5) @ eigenvecs.T
+        
+        if self.refit_mu or (self.mu_full is None):
+            self.mu_full = clone(self.regressor)
+            self.mu_full.fit(X - self.mean, y)
+
+        if self.Z_full is None:
+            self.Z_full = (X - self.mean) @ self.L_inv 
+
+
+    def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
+        raise NotImplementedError("DFIZEstimator does not support single feature importance directly. Use importance method instead.")
+
+    def _single_fold_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+        Z = (X - self.mean) @ self.L_inv
+        phi_Z, ueif = self._phi_Z(Z, y)
+
+        if j is not None:
+            return phi_Z[j], ueif[:,j]
+        else:
+            return phi_Z, ueif
+
+    def _phi_Z(self, Z: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        n, d = Z.shape      
+        y_pred = self.mu_full.predict(Z @ self.L) 
+
+
+
+        def compute_ueif_for_sample(j):
+            rng = default_rng(j)
+            Z_tilde = np.tile(Z[None, :, :], (self.n_samples, 1, 1))  # Shape: (n_samples, n, d)
+
+
+
+            if self.sampling_method == 'resample':
+                resample_indices = rng.choice(self.Z_full.shape[0], size=(self.n_samples, n), replace=True)
+                Z_tilde[:, :, j] = self.Z_full[resample_indices, j]
+
+
+            elif self.sampling_method == 'permutation':
+                perm_indices = np.array([rng.permutation(n) for _ in range(self.n_samples)])
+                Z_tilde[:, :, j] = Z[perm_indices, j]
+
+            elif self.sampling_method == 'normal':
+                Z_tilde[:, :, j] = rng.normal(0, 1, size=(self.n_samples, n))
+            else:
+                raise ValueError(f"Unknown sampling_method: {self.sampling_method}")
+            # Reshape and predict in batch
+            Z_tilde_flat = Z_tilde.reshape(-1, d)
+
+            y_perm_flat = self.mu_full.predict(Z_tilde_flat @ self.L)
+            y_perm = y_perm_flat.reshape(self.n_samples, n).mean(axis=0) 
+      
+
+
+            return y_perm 
+
+
+        y_perm = np.array(Parallel(n_jobs=-1)(
+            delayed(compute_ueif_for_sample)(j) for j in range(d)
+        )).T 
+
+
+
+
+
+        ueif = ((y[:, None] - y_perm) ** 2 - (y - y_pred)[:, None] ** 2) 
+
+        phi_Z = np.maximum(np.mean(ueif, axis=0), 0.0) 
+
+        return phi_Z, ueif
+
+
+@dataclass 
+class DFIEstimator(DFIZEstimator):
+    name: str = field(default="DFI", init=False)
+
+    def _single_fold_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+        Z = (X - self.mean) @ self.L_inv
+        self.phi_Z, self.ueifs_Z = self._phi_Z(Z, y)
+
+        ueif = self.ueifs_Z @ (self.L ** 2).T
+        phi_X = np.maximum(np.mean(ueif, axis=0), 0.0)
+       
+
+        if j is not None:
+            return phi_X[j], ueif[:,j]
+        else:
+            return phi_X, ueif
+
+
