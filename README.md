@@ -19,3 +19,7 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `Exp3.py` with the provided settings to reproduce the benchmark comparisons with different predictors.  
    Use `Exp3_plot.py` to generate the corresponding figures.
 
+4. **Real_data/CTG**: Implementation of the experiments in Section 4.3 and Appendix E.3.1.  
+   Run `CTG.ipynb` to execute the experiments and obtain the corresponding results and figures. 
+
+
