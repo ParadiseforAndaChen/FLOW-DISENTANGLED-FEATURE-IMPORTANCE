@@ -1,0 +1,360 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import Dict, Sequence, Optional, Tuple
+from matplotlib.ticker import FixedLocator, FixedFormatter, FormatStrFormatter
+
+def plot_big_2x4(
+    # ===== inputs: by samples =====
+    loco_csv_by_n: Dict[int, str],
+    cpi_csv_by_n: Dict[int, str],
+    dfi_csv_by_n: Dict[int, str],
+    # ===== inputs: by rho =====
+    loco_csv_by_rho: Dict[float, str],
+    cpi_csv_by_rho: Dict[float, str],
+    dfi_csv_by_rho: Dict[float, str],
+    # ===== appearance =====
+    figsize: Tuple[int, int]=(24, 10),
+    title_size: int=18,
+    axis_label_size: int=16,
+    tick_size: int=14,
+    legend_size: int=20,
+    group_span_ratio_samples: float=0.50,
+    group_span_ratio_rho: float=0.50,
+    auc_extra_xpad_frac: float=0.08,
+    auc_extra_ypad_frac: float=0.02,
+    jitter_frac_div: float=8.0,
+    box_width_div: float=2.5,
+    axes_box_aspect: float = 0.75,
+    wspace: float = 0.24,
+    hspace: float = 0.28,
+    s: int=18,
+    band: str="ci",           
+    ci_level: float=0.95,
+    band_alpha: float=0.18,
+    showfliers: bool=False,
+    box_alpha: float=0.35,
+    alpha_line_for_type1: Optional[float]=0.05,
+    colors: Sequence[str]=("#4C78A8", "#F58518", "#54A24B", "#E45756", "#B279A2"),
+
+    show_titles_row: Tuple[bool, bool]=(True, False),
+    save_path: Optional[str]=None,
+
+    n_boot: int = 1000,
+    random_state: Optional[int] = None,
+):
+
+
+    def _bootstrap_ci_mean(vals: np.ndarray, level: float, n_boot: int, rng: np.random.Generator) -> Tuple[float, float, float]:
+        vals = np.asarray(vals, dtype=float)
+        vals = vals[~np.isnan(vals)]
+        m = len(vals)
+        if m == 0:
+            return np.nan, np.nan, np.nan
+        mu = float(np.mean(vals))
+        if m == 1 or n_boot <= 0:
+            return mu, mu, mu
+        boots = np.empty(n_boot, dtype=float)
+        idx_max = m - 1
+        for b in range(n_boot):
+            idx = rng.integers(0, m, size=m)   
+
+            boots[b] = float(np.mean(vals[idx]))
+        alpha = (1.0 - level) / 2.0
+        lo, up = np.percentile(boots, [100.0*alpha, 100.0*(1.0 - alpha)], method="linear")
+        return mu, float(lo), float(up)
+
+
+    plt.rcParams.update({
+        "axes.titlesize": title_size,
+        "axes.labelsize": axis_label_size,
+        "xtick.labelsize": tick_size,
+        "ytick.labelsize": tick_size,
+        "legend.fontsize": legend_size,
+    })
+
+
+    fmt_1dec = FormatStrFormatter('%.1f')
+    fmt_2dec = FormatStrFormatter('%.2f')
+
+    metrics = ("AUC Score", "Power(C1)", "Type I Error", "Power(C1\\cup C2)")
+    metric_bases = {
+        "AUC Score": ("auc_score", None),
+        "Power(C1)": ("power", None),
+        "Type I Error": ("type1", None),
+        "Power(C1\\cup C2)": ("power", "count"),
+    }
+    group_defs = [
+        ("LOCO",       "loco", "_0_loco"),
+        ("CPI",        "cpi",  "_0_cpi"),
+        ("FDFI(SCPI)", "loco", "_x_loco"),
+        ("FDFI(CPI)",  "cpi",  "_x_cpi"),
+        ("DFI",        "dfi",  "_x_dfi"),
+    ]
+
+
+
+    Ns = sorted(set(loco_csv_by_n) & set(cpi_csv_by_n) & set(dfi_csv_by_n))
+
+    frames_loco_n = {n: pd.read_csv(loco_csv_by_n[n]) for n in Ns}
+    frames_cpi_n  = {n: pd.read_csv(cpi_csv_by_n[n])  for n in Ns}
+    frames_dfi_n  = {n: pd.read_csv(dfi_csv_by_n[n])  for n in Ns}
+    frames_by_src_n = {"loco": frames_loco_n, "cpi": frames_cpi_n, "dfi": frames_dfi_n}
+
+    Rhos = sorted(set(loco_csv_by_rho) & set(cpi_csv_by_rho) & set(dfi_csv_by_rho))
+
+    frames_loco_r = {r: pd.read_csv(loco_csv_by_rho[r]) for r in Rhos}
+    frames_cpi_r  = {r: pd.read_csv(cpi_csv_by_rho[r])  for r in Rhos}
+    frames_dfi_r  = {r: pd.read_csv(dfi_csv_by_rho[r])  for r in Rhos}
+    frames_by_src_r = {"loco": frames_loco_r, "cpi": frames_cpi_r, "dfi": frames_dfi_r}
+
+
+    fig, axes = plt.subplots(
+        2, 4, figsize=figsize, dpi=300, sharey=False,
+        gridspec_kw={"hspace": hspace, "wspace": wspace}
+    )
+    for ax in axes.flat:
+        try:
+            ax.set_box_aspect(axes_box_aspect)
+        except Exception:
+            pass
+
+
+    rng = np.random.default_rng(random_state)
+
+    def _plot_right_three(ax, xvals, frames_by_src, metric, is_rho: bool, show_title: bool):
+        base1, base2 = metric_bases[metric]
+        for (label, src, suffix), color in zip(group_defs, colors):
+            means, lowers, uppers = [], [], []
+            for xv in xvals:
+                df = frames_by_src[src][xv]
+                col1 = f"{base1}{suffix}"
+                if col1 not in df.columns:
+                    means.append(np.nan); lowers.append(np.nan); uppers.append(np.nan); continue
+                if base2 is None:
+                    vals = df[col1].dropna().values
+                else:
+                    col2 = f"{base2}{suffix}"
+                    if col2 not in df.columns:
+                        means.append(np.nan); lowers.append(np.nan); uppers.append(np.nan); continue
+                    sub = df[[col1, col2]].dropna()
+                    vals = (5.0*sub[col1] + sub[col2]).to_numpy()/10.0 if not sub.empty else np.array([])
+
+                vals = np.asarray(vals, dtype=float)
+                m = len(vals)
+
+                if m == 0:
+                    means.append(np.nan); lowers.append(np.nan); uppers.append(np.nan)
+                else:
+                    if band == "sd":
+                        mu = float(np.mean(vals))
+                        sd = float(np.std(vals, ddof=1)) if m > 1 else 0.0
+                        lo, up = mu - sd, mu + sd
+                    elif band == "se":
+                        mu = float(np.mean(vals))
+                        sd = float(np.std(vals, ddof=1)) if m > 1 else 0.0
+                        se = sd/np.sqrt(m) if m > 0 else 0.0
+                        lo, up = mu - z_val*se, mu + z_val*se
+                    else:  
+                        mu, lo, up = _bootstrap_ci_mean(vals, ci_level, n_boot, rng)
+
+                    means.append(mu); lowers.append(lo); uppers.append(up)
+
+            means, lowers, uppers = map(np.array, (means, lowers, uppers))
+            ax.plot(xvals, means, marker="o", lw=2, color=color, label=label)
+            ax.fill_between(xvals, lowers, uppers, color=color, alpha=band_alpha)
+
+        title_txt = r"Power(C1∪C2)" if metric=="Power(C1\\cup C2)" else metric
+        if show_title:
+            ax.set_title(title_txt, fontsize=title_size)
+        else:
+            ax.set_title("")
+
+        ax.set_xlabel("Correlation $\\rho$" if is_rho else "Sample size n", fontsize=axis_label_size)
+        ax.grid(True, alpha=0.3)
+        ax.set_xticks(xvals)
+        if metric.lower().startswith("type i error"):
+            ax.set_ylim(-0.003, 0.1)
+            ax.yaxis.set_major_formatter(fmt_2dec)
+            if alpha_line_for_type1 is not None:
+                ax.axhline(0.05, ls="--", lw=2.5, color="magenta")
+        else:
+            ax.yaxis.set_major_formatter(fmt_1dec)
+
+    ax_auc_n = axes[0, 0]
+    base_auc = metric_bases["AUC Score"][0]
+    K = len(group_defs)
+    step_n = float(np.min(np.diff(Ns))) if len(Ns) > 1 else 1.0
+    group_span_n = group_span_ratio_samples * step_n
+    offsets_n = np.linspace(-group_span_n/2, group_span_n/2, K)
+    jitter_sigma_n = group_span_n / (K * jitter_frac_div)
+    box_w_n = group_span_n / (K * box_width_div)
+
+    auc_vals_n = []
+    for n in Ns:
+        for k, ((label, src, suffix), color) in enumerate(zip(group_defs, colors)):
+            df = frames_by_src_n[src][n]
+            col = f"{base_auc}{suffix}"
+            if col not in df.columns: continue
+            vals = df[col].dropna().values
+            if len(vals) == 0: continue
+            auc_vals_n.append(vals)
+            xc = n + offsets_n[k]
+            x = np.random.normal(xc, jitter_sigma_n, size=len(vals))
+            ax_auc_n.scatter(x, vals, color=color, alpha=0.65, s=s, edgecolor="none")
+            bp = ax_auc_n.boxplot(
+                [vals], vert=True, positions=[xc], widths=box_w_n, patch_artist=True,
+                showfliers=showfliers,
+                medianprops=dict(lw=2.2, color="black", linestyle="--"),
+                whiskerprops=dict(lw=1.4, color="black"),
+                capprops=dict(lw=1.4, color="black"),
+                boxprops=dict(lw=1.2, edgecolor="black"),
+            )
+            for patch in bp["boxes"]:
+                patch.set_facecolor(color); patch.set_alpha(box_alpha)
+
+    if show_titles_row[0]:
+        ax_auc_n.set_title("AUC Score", fontsize=title_size)
+    else:
+        ax_auc_n.set_title("")
+    ax_auc_n.set_xlabel("Sample size n", fontsize=axis_label_size)
+    ax_auc_n.xaxis.set_major_locator(FixedLocator(Ns))
+    ax_auc_n.xaxis.set_major_formatter(FixedFormatter([str(n) for n in Ns]))
+    ax_auc_n.yaxis.set_major_formatter(fmt_1dec)
+    left_pad  = (group_span_n/2) + 4*jitter_sigma_n + (box_w_n/2) + auc_extra_xpad_frac*step_n
+    right_pad = (group_span_n/2) + 4*jitter_sigma_n + (box_w_n/2) + auc_extra_xpad_frac*step_n
+    ax_auc_n.set_xlim(min(Ns) - left_pad, max(Ns) + right_pad)
+    if auc_vals_n:
+        y_min = float(np.min(np.concatenate(auc_vals_n)))
+        y_max = float(np.max(np.concatenate(auc_vals_n)))
+        yr = max(y_max - y_min, 1e-6)
+        ax_auc_n.set_ylim(y_min - auc_extra_ypad_frac*yr, y_max + auc_extra_ypad_frac*yr)
+    ax_auc_n.grid(True, axis="y", alpha=0.3)
+
+    for j, metric in enumerate(metrics[1:], start=1):
+        _plot_right_three(axes[0, j], Ns, frames_by_src_n, metric, is_rho=False, show_title=show_titles_row[0])
+
+    ax_auc_r = axes[1, 0]
+    step_r = float(np.min(np.diff(Rhos))) if len(Rhos) > 1 else 1.0
+    group_span_r = group_span_ratio_rho * step_r
+    offsets_r = np.linspace(-group_span_r/2, group_span_r/2, K)
+    jitter_sigma_r = group_span_r / (K * jitter_frac_div)
+    box_w_r = group_span_r / (K * box_width_div)
+
+    auc_vals_r = []
+    for rho in Rhos:
+        for k, ((label, src, suffix), color) in enumerate(zip(group_defs, colors)):
+            df = frames_by_src_r[src][rho]
+            col = f"{base_auc}{suffix}"
+            if col not in df.columns: continue
+            vals = df[col].dropna().values
+            if len(vals)==0: continue
+            auc_vals_r.append(vals)
+
+            xc = rho + offsets_r[k]
+            x = np.random.normal(xc, jitter_sigma_r, size=len(vals))
+            ax_auc_r.scatter(x, vals, color=color, alpha=0.65, s=s, edgecolor="none")
+            bp = ax_auc_r.boxplot(
+                [vals], vert=True, positions=[xc], widths=box_w_r, patch_artist=True,
+                showfliers=showfliers,
+                medianprops=dict(lw=2.2, color="black", linestyle="--"),
+                whiskerprops=dict(lw=1.4, color="black"),
+                capprops=dict(lw=1.4, color="black"),
+                boxprops=dict(lw=1.2, edgecolor="black"),
+            )
+            for patch in bp["boxes"]:
+                patch.set_facecolor(color); patch.set_alpha(box_alpha)
+
+    ax_auc_r.set_title("" if not show_titles_row[1] else "AUC Score", fontsize=title_size)
+    ax_auc_r.set_xlabel("Correlation $\\rho$", fontsize=axis_label_size)
+    ax_auc_r.xaxis.set_major_locator(FixedLocator(Rhos))
+    ax_auc_r.xaxis.set_major_formatter(FixedFormatter([f"{r:g}" for r in Rhos]))
+    ax_auc_r.yaxis.set_major_formatter(fmt_1dec)
+    left_pad_r  = (group_span_r/2) + 4*jitter_sigma_r + (box_w_r/2) + auc_extra_xpad_frac*step_r
+    right_pad_r = (group_span_r/2) + 4*jitter_sigma_r + (box_w_r/2) + auc_extra_xpad_frac*step_r
+    ax_auc_r.set_xlim(min(Rhos) - left_pad_r, max(Rhos) + right_pad_r)
+    if auc_vals_r:
+        y_min = float(np.min(np.concatenate(auc_vals_r)))
+        y_max = float(np.max(np.concatenate(auc_vals_r)))
+        yr = max(y_max - y_min, 1e-6)
+        ax_auc_r.set_ylim(y_min - auc_extra_ypad_frac*yr, y_max + auc_extra_ypad_frac*yr)
+    ax_auc_r.grid(True, axis="y", alpha=0.3)
+
+    for j, metric in enumerate(metrics[1:], start=1):
+        _plot_right_three(axes[1, j], Rhos, frames_by_src_r, metric, is_rho=True, show_title=show_titles_row[1])
+
+    handles = [plt.Line2D([0],[0], color=c, lw=2) for c in colors[:len(group_defs)]]
+    labels  = [g[0] for g in group_defs]
+    ref_line = plt.Line2D([0],[0], color="magenta", lw=2.5, ls="--")
+    handles.append(ref_line); labels.append(r"$\alpha=0.05$")
+    fig.legend(
+        handles, labels,
+        loc="upper center", bbox_to_anchor=(0.5, 0.92),
+        ncol=min(len(labels), 8),
+        frameon=False,
+        fontsize=legend_size,
+        markerscale=1.4,
+        handlelength=1.9,
+        handletextpad=0.5,
+        labelspacing=0.6,
+        columnspacing=1.0
+    )
+
+    fig.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight", pad_inches=0., dpi=300)
+    plt.show()
+
+
+if __name__ == "__main__":
+    loco_csv_by_n = {
+        200: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\200\summary\loco_summary.csv",
+        400: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\400\summary\loco_summary.csv",
+        600: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\600\summary\loco_summary.csv",
+        800: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\800\summary\loco_summary.csv",
+        1000:r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\loco_summary.csv",
+    }
+    cpi_csv_by_n = {
+        200: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\200\summary\cpi_summary.csv",
+        400: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\400\summary\cpi_summary.csv",
+        600: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\600\summary\cpi_summary.csv",
+        800: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\800\summary\cpi_summary.csv",
+        1000:r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\cpi_summary.csv",
+    }
+    dfi_csv_by_n = {
+        200: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\200\summary\dfi_summary.csv",
+        400: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\400\summary\dfi_summary.csv",
+        600: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\600\summary\dfi_summary.csv",
+        800: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\800\summary\dfi_summary.csv",
+        1000:r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\dfi_summary.csv",
+    }
+
+    loco_csv_by_rho = {
+        0.8: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\loco_summary.csv",
+        0.4: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.4\1000\summary\loco_summary.csv",
+        0.6: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.6\1000\summary\loco_summary.csv",
+    }
+    cpi_csv_by_rho = {
+        0.8: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\cpi_summary.csv",
+        0.4: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.4\1000\summary\cpi_summary.csv",
+        0.6: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.6\1000\summary\cpi_summary.csv",
+    }
+    dfi_csv_by_rho = {
+        0.8: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.8\1000\summary\dfi_summary.csv",
+        0.4: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.4\1000\summary\dfi_summary.csv",
+        0.6: r"F:\Code\2025\ICLR_Flow_Disentangle\Exp1\0.6\1000\summary\dfi_summary.csv",
+    }
+
+
+    plot_big_2x4(
+        loco_csv_by_n, cpi_csv_by_n, dfi_csv_by_n,
+        loco_csv_by_rho, cpi_csv_by_rho, dfi_csv_by_rho,
+        figsize=(16, 8),
+        axes_box_aspect=0.75,
+        hspace=-0.21,
+        title_size=18, axis_label_size=16, tick_size=14, legend_size=20,
+        show_titles_row=(True, False),
+        save_path=r"Exp1\big_2x4.pdf",
+        n_boot=1000,
+        random_state=42,
+    )
