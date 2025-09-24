@@ -23,7 +23,7 @@ if not os.path.exists(csv_path_runtime):
         ])
 
 for run in range(1, num_runs + 1):
-    print(f"\n================ 第 {run} 次运行 ================\n")
+    print(f"\n================ {run} ================\n")
 
     import sys
     sys.path.append('ICLR_Flow_Disentangle')
