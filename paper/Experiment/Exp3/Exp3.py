@@ -207,15 +207,11 @@ for run in range(1, num_runs + 1):
     X_full, y = Exp1().generate(1000, rho, seed) 
     
     
-    from Inference.estimators import LOCOEstimator, LOCO_Flow_Model_Estimator
+    from Inference.estimators import LOCOEstimator, SCPI_Flow_Model_Estimator
     
     from sklearn.ensemble import RandomForestRegressor
 
-    
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_0                                          #
-    #---------------------------------------------------------------------------------------#
-    
+
     estimator1 = LOCOEstimator(
     
             regressor =  RandomForestRegressor(
@@ -229,32 +225,24 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_0_loco_rf, std_0_loco_rf = estimator1.importance(X_full, y)
-    
-    
-    print("Feature\tLOCO_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_loco_rf, std_0_loco_rf)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_0总和: {D* np.mean(phi_0_loco_rf)}")
+    phi_0_loco_rf, se_0_loco_rf = estimator1.importance(X_full, y)
     
     
 
     phi_0_loco_test_rf = phi_0_loco_rf 
 
-    std_0_loco_test_rf = std_0_loco_rf 
+    se_0_loco_test_rf = se_0_loco_rf 
     
-    z_score_0_loco_rf = phi_0_loco_test_rf / std_0_loco_test_rf
+    z_score_0_loco_rf = phi_0_loco_test_rf / se_0_loco_test_rf
     
     p_value_0_loco_rf = 1 - norm.cdf(z_score_0_loco_rf)
     rounded_p_value_0_loco_rf = np.round(p_value_0_loco_rf, 3)
     
     print(rounded_p_value_0_loco_rf)
     
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_X                                          #
-    #---------------------------------------------------------------------------------------#
+
     
-    estimator3 = LOCO_Flow_Model_Estimator(
+    estimator3 = SCPI_Flow_Model_Estimator(
         regressor =  RandomForestRegressor(
                 n_estimators=500,
                 max_depth=None,
@@ -267,22 +255,14 @@ for run in range(1, num_runs + 1):
     )
 
     
-    phi_x_loco_rf, std_x_loco_rf = estimator3.importance(X_full, y)
+    phi_x_loco_rf, se_x_loco_rf = estimator3.importance(X_full, y)
     
     
-    print("Feature\tLOCO_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_loco_rf, std_x_loco_rf)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_X总和: {D* np.mean(phi_x_loco_rf)}")
-    
-    
-    
-
     phi_x_loco_test_rf = phi_x_loco_rf 
 
-    std_x_loco_test_rf = std_x_loco_rf 
+    se_x_loco_test_rf = se_x_loco_rf 
     
-    z_score_x_loco_rf = phi_x_loco_test_rf / std_x_loco_test_rf
+    z_score_x_loco_rf = phi_x_loco_test_rf / se_x_loco_test_rf
     
     p_value_x_loco_rf = 1 - norm.cdf(z_score_x_loco_rf)
     rounded_p_value_x_loco_rf = np.round(p_value_x_loco_rf, 3)
@@ -332,8 +312,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_loco_rf)):
             txtfile.write(
-                          f"{phi_0_loco_rf[i]:.6f}\t{std_0_loco_rf[i]:.6f}\t"
-                          f"{phi_x_loco_rf[i]:.6f}\t{std_x_loco_rf[i]:.6f}\n")
+                          f"{phi_0_loco_rf[i]:.6f}\t{se_0_loco_rf[i]:.6f}\t"
+                          f"{phi_x_loco_rf[i]:.6f}\t{se_x_loco_rf[i]:.6f}\n")
 
 
 
@@ -363,29 +343,20 @@ for run in range(1, num_runs + 1):
                 max_depth=None,
                 min_samples_leaf=5,
                 random_state=seed,
-                #random_state=42,
                 n_jobs=n_jobs
                 )
 
     )
 
     
-    phi_x_dfi_rf, std_x_dfi_rf = estimator4.importance(X_full, y)
+    phi_x_dfi_rf, se_x_dfi_rf = estimator4.importance(X_full, y)
     
     
-    print("Feature\tDFI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_dfi_rf, std_x_dfi_rf)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"DFI_X总和: {D* np.mean(phi_x_dfi_rf)}")
-    
-    
-    
-   
     phi_x_dfi_test_rf = phi_x_dfi_rf 
 
-    std_x_dfi_test_rf = std_x_dfi_rf 
+    se_x_dfi_test_rf = se_x_dfi_rf 
     
-    z_score_x_dfi_rf = phi_x_dfi_test_rf / std_x_dfi_test_rf
+    z_score_x_dfi_rf = phi_x_dfi_test_rf / se_x_dfi_test_rf
     
     p_value_x_dfi_rf = 1 - norm.cdf(z_score_x_dfi_rf)
     rounded_p_value_x_dfi_rf = np.round(p_value_x_dfi_rf, 3)
@@ -430,7 +401,7 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_x\tstd_x\n")
         for i in range(len(phi_x_dfi_rf)):
             txtfile.write(
-                          f"{phi_x_dfi_rf[i]:.6f}\t{std_x_dfi_rf[i]:.6f}\n")
+                          f"{phi_x_dfi_rf[i]:.6f}\t{se_x_dfi_rf[i]:.6f}\n")
 
 
 
@@ -443,15 +414,10 @@ for run in range(1, num_runs + 1):
         ])
 
 
-#########################################################################################################################################################################
-#                                                                           CPI                                                                                        #
-#########################################################################################################################################################################
 
     from Inference.estimators import  CPIEstimator, CPI_Flow_Model_Estimator
 
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_0                                           #
-    #---------------------------------------------------------------------------------------#
+
 
     estimator6 = CPIEstimator(
             regressor =  RandomForestRegressor(
@@ -463,22 +429,14 @@ for run in range(1, num_runs + 1):
                 )
     )
 
-    phi_0_cpi_rf, std_0_cpi_rf = estimator6.importance(X_full, y)
+    phi_0_cpi_rf, se_0_cpi_rf = estimator6.importance(X_full, y)
 
     
-    print("Feature\tCPI_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_cpi_rf, std_0_cpi_rf)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_0总和: {D* np.mean(phi_0_cpi_rf)}")
-    
-    
-
-
     phi_0_cpi_test_rf = phi_0_cpi_rf 
 
-    std_0_cpi_test_rf = std_0_cpi_rf 
+    se_0_cpi_test_rf = se_0_cpi_rf 
 
-    z_score_0_cpi_rf = phi_0_cpi_test_rf / std_0_cpi_test_rf
+    z_score_0_cpi_rf = phi_0_cpi_test_rf / se_0_cpi_test_rf
     
     p_value_0_cpi_rf = 1 - norm.cdf(z_score_0_cpi_rf)
     rounded_p_value_0_cpi_rf = np.round(p_value_0_cpi_rf, 3)
@@ -486,10 +444,6 @@ for run in range(1, num_runs + 1):
     print(rounded_p_value_0_cpi_rf)
 
 
-
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_X                                           #
-    #---------------------------------------------------------------------------------------#
 
     estimator8 = CPI_Flow_Model_Estimator(
         regressor =  RandomForestRegressor(
@@ -504,21 +458,14 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_x_cpi_rf, std_x_cpi_rf = estimator8.importance(X_full, y)
-    
-    
-    print("Feature\tCPI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_cpi_rf, std_x_cpi_rf)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_X总和: {D* np.mean(phi_x_cpi_rf)}")
-    
+    phi_x_cpi_rf, se_x_cpi_rf = estimator8.importance(X_full, y)
     
 
     phi_x_cpi_test_rf = phi_x_cpi_rf 
 
-    std_x_cpi_test_rf = std_x_cpi_rf 
+    se_x_cpi_test_rf = se_x_cpi_rf 
     
-    z_score_x_cpi_rf = phi_x_cpi_test_rf / std_x_cpi_test_rf
+    z_score_x_cpi_rf = phi_x_cpi_test_rf / se_x_cpi_test_rf
     
     
     p_value_x_cpi_rf = 1 - norm.cdf(z_score_x_cpi_rf)
@@ -567,8 +514,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_cpi_rf)):
             txtfile.write(
-                          f"{phi_0_cpi_rf[i]:.6f}\t{std_0_cpi_rf[i]:.6f}\t"
-                          f"{phi_x_cpi_rf[i]:.6f}\t{std_x_cpi_rf[i]:.6f}\n")
+                          f"{phi_0_cpi_rf[i]:.6f}\t{se_0_cpi_rf[i]:.6f}\t"
+                          f"{phi_x_cpi_rf[i]:.6f}\t{se_x_cpi_rf[i]:.6f}\n")
             
     with open(csv_path_cpi_rf, mode='a', newline='') as f:
         writer = csv.writer(f)
@@ -587,38 +534,28 @@ for run in range(1, num_runs + 1):
 
 
 
-    
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_0                                          #
-    #---------------------------------------------------------------------------------------#
+
     
     estimator1 = LOCOEstimator(
     
     
     
     regressor = make_pipeline(
-        StandardScaler(),                  # Lasso 对特征缩放较敏感
+        StandardScaler(),                 
         Lasso(alpha=1e-3, max_iter=10000, tol=1e-4)
     )
     
     )
     
     
-    phi_0_loco_ls, std_0_loco_ls = estimator1.importance(X_full, y)
-    
-    
-    print("Feature\tLOCO_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_loco_ls, std_0_loco_ls)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_0总和: {D* np.mean(phi_0_loco_ls)}")
-    
+    phi_0_loco_ls, se_0_loco_ls = estimator1.importance(X_full, y)
     
 
     phi_0_loco_test_ls = phi_0_loco_ls 
 
-    std_0_loco_test_ls = std_0_loco_ls 
+    se_0_loco_test_ls = se_0_loco_ls 
     
-    z_score_0_loco_ls = phi_0_loco_test_ls / std_0_loco_test_ls
+    z_score_0_loco_ls = phi_0_loco_test_ls / se_0_loco_test_ls
     
     p_value_0_loco_ls = 1 - norm.cdf(z_score_0_loco_ls)
     rounded_p_value_0_loco_ls = np.round(p_value_0_loco_ls, 3)
@@ -627,37 +564,25 @@ for run in range(1, num_runs + 1):
     
     
 
+
     
-    
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_X                                          #
-    #---------------------------------------------------------------------------------------#
-    
-    estimator3 = LOCO_Flow_Model_Estimator(
+    estimator3 = SCPI_Flow_Model_Estimator(
         regressor = make_pipeline(
-                    StandardScaler(),                  # Lasso 对特征缩放较敏感
+                    StandardScaler(),                  
                     Lasso(alpha=1e-3, max_iter=10000, tol=1e-4)
                 ),
         flow_model=model
     )
 
     
-    phi_x_loco_ls, std_x_loco_ls = estimator3.importance(X_full, y)
-    
-    
-    print("Feature\tLOCO_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_loco_ls, std_x_loco_ls)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_X总和: {D* np.mean(phi_x_loco_ls)}")
-    
-    
+    phi_x_loco_ls, se_x_loco_ls = estimator3.importance(X_full, y)
     
 
     phi_x_loco_test_ls = phi_x_loco_ls 
 
-    std_x_loco_test_ls = std_x_loco_ls 
+    se_x_loco_test_ls = se_x_loco_ls 
     
-    z_score_x_loco_ls = phi_x_loco_test_ls / std_x_loco_test_ls
+    z_score_x_loco_ls = phi_x_loco_test_ls / se_x_loco_test_ls
     
     p_value_x_loco_ls = 1 - norm.cdf(z_score_x_loco_ls)
     rounded_p_value_x_loco_ls = np.round(p_value_x_loco_ls, 3)
@@ -708,8 +633,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_loco_ls)):
             txtfile.write(
-                          f"{phi_0_loco_ls[i]:.6f}\t{std_0_loco_ls[i]:.6f}\t"
-                          f"{phi_x_loco_ls[i]:.6f}\t{std_x_loco_ls[i]:.6f}\n")
+                          f"{phi_0_loco_ls[i]:.6f}\t{se_0_loco_ls[i]:.6f}\t"
+                          f"{phi_x_loco_ls[i]:.6f}\t{se_x_loco_ls[i]:.6f}\n")
 
 
 
@@ -735,29 +660,21 @@ for run in range(1, num_runs + 1):
     
     estimator4 = DFIEstimator(
             regressor = make_pipeline(
-            StandardScaler(),                  # Lasso 对特征缩放较敏感
+            StandardScaler(),                  
             Lasso(alpha=1e-3, max_iter=10000, tol=1e-4)
         )
 
     )
 
     
-    phi_x_dfi_ls, std_x_dfi_ls = estimator4.importance(X_full, y)
+    phi_x_dfi_ls, se_x_dfi_ls = estimator4.importance(X_full, y)
     
-    
-    print("Feature\tDFI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_dfi_ls, std_x_dfi_ls)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"DFI_X总和: {D* np.mean(phi_x_dfi_ls)}")
-    
-    
-    
-   
+
     phi_x_dfi_test_ls = phi_x_dfi_ls 
 
-    std_x_dfi_test_ls = std_x_dfi_ls 
+    se_x_dfi_test_ls = se_x_dfi_ls 
     
-    z_score_x_dfi_ls = phi_x_dfi_test_ls / std_x_dfi_test_ls
+    z_score_x_dfi_ls = phi_x_dfi_test_ls / se_x_dfi_test_ls
     
     p_value_x_dfi_ls = 1 - norm.cdf(z_score_x_dfi_ls)
     rounded_p_value_x_dfi_ls = np.round(p_value_x_dfi_ls, 3)
@@ -799,7 +716,7 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_x\tstd_x\n")
         for i in range(len(phi_x_dfi_ls)):
             txtfile.write(
-                          f"{phi_x_dfi_ls[i]:.6f}\t{std_x_dfi_ls[i]:.6f}\n")
+                          f"{phi_x_dfi_ls[i]:.6f}\t{se_x_dfi_ls[i]:.6f}\n")
 
 
 
@@ -813,41 +730,25 @@ for run in range(1, num_runs + 1):
 
 
 
-
-#########################################################################################################################################################################
-#                                                                           CPI                                                                                        #
-#########################################################################################################################################################################
-
     from Inference.estimators import  CPIEstimator,  CPI_Flow_Model_Estimator
 
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_0                                           #
-    #---------------------------------------------------------------------------------------#
 
     estimator6 = CPIEstimator(
         regressor = make_pipeline(
-                StandardScaler(),                  # Lasso 对特征缩放较敏感
+                StandardScaler(),                  
                 Lasso(alpha=1e-3, max_iter=10000, tol=1e-4)
             )
     )
 
 
-    phi_0_cpi_ls, std_0_cpi_ls = estimator6.importance(X_full, y)
+    phi_0_cpi_ls, se_0_cpi_ls = estimator6.importance(X_full, y)
 
     
-    print("Feature\tCPI_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_cpi_ls, std_0_cpi_ls)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_0总和: {D* np.mean(phi_0_cpi_ls)}")
-    
-    
-
-
     phi_0_cpi_test_ls = phi_0_cpi_ls 
 
-    std_0_cpi_test_ls = std_0_cpi_ls 
+    se_0_cpi_test_ls = se_0_cpi_ls 
 
-    z_score_0_cpi_ls = phi_0_cpi_test_ls / std_0_cpi_test_ls
+    z_score_0_cpi_ls = phi_0_cpi_test_ls / se_0_cpi_test_ls
     
     p_value_0_cpi_ls = 1 - norm.cdf(z_score_0_cpi_ls)
     rounded_p_value_0_cpi_ls = np.round(p_value_0_cpi_ls, 3)
@@ -856,15 +757,9 @@ for run in range(1, num_runs + 1):
 
 
 
-
-
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_X                                           #
-    #---------------------------------------------------------------------------------------#
-
     estimator8 = CPI_Flow_Model_Estimator(
         regressor = make_pipeline(
-                StandardScaler(),                  # Lasso 对特征缩放较敏感
+                StandardScaler(),                 
                 Lasso(alpha=1e-3, max_iter=10000, tol=1e-4)
             ),
         flow_model=model
@@ -872,21 +767,14 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_x_cpi_ls, std_x_cpi_ls = estimator8.importance(X_full, y)
-    
-    
-    print("Feature\tCPI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_cpi_ls, std_x_cpi_ls)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_X总和: {D* np.mean(phi_x_cpi_ls)}")
-    
+    phi_x_cpi_ls, se_x_cpi_ls = estimator8.importance(X_full, y)
     
 
     phi_x_cpi_test_ls = phi_x_cpi_ls 
 
-    std_x_cpi_test_ls = std_x_cpi_ls 
+    se_x_cpi_test_ls = se_x_cpi_ls 
     
-    z_score_x_cpi_ls = phi_x_cpi_test_ls / std_x_cpi_test_ls
+    z_score_x_cpi_ls = phi_x_cpi_test_ls / se_x_cpi_test_ls
     
     
     p_value_x_cpi_ls = 1 - norm.cdf(z_score_x_cpi_ls)
@@ -936,8 +824,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_cpi_ls)):
             txtfile.write(
-                          f"{phi_0_cpi_ls[i]:.6f}\t{std_0_cpi_ls[i]:.6f}\t"
-                          f"{phi_x_cpi_ls[i]:.6f}\t{std_x_cpi_ls[i]:.6f}\n")
+                          f"{phi_0_cpi_ls[i]:.6f}\t{se_0_cpi_ls[i]:.6f}\t"
+                          f"{phi_x_cpi_ls[i]:.6f}\t{se_x_cpi_ls[i]:.6f}\n")
             
     with open(csv_path_cpi_ls, mode='a', newline='') as f:
         writer = csv.writer(f)
@@ -951,22 +839,10 @@ for run in range(1, num_runs + 1):
 
     
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-
+    
+    from Inference.estimators import LOCOEstimator,  SCPI_Flow_Model_Estimator
     
 
-    #########################################################################################################################################################################
-    #                                                                           LOCO                                                                                        #
-    #########################################################################################################################################################################
-    
-    from Inference.estimators import LOCOEstimator,  LOCO_Flow_Model_Estimator
-    
-
-    
-    
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_0                                          #
-    #---------------------------------------------------------------------------------------#
-    
     estimator1 = LOCOEstimator(
     
     
@@ -974,7 +850,7 @@ for run in range(1, num_runs + 1):
     regressor = make_pipeline(
             StandardScaler(),
             MLPRegressor(
-                hidden_layer_sizes=(128,64),
+                hidden_layer_sizes=(16,8),
                 activation="relu",
                 solver="adam",
                 learning_rate_init=1e-3,
@@ -988,21 +864,14 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_0_loco_nn, std_0_loco_nn = estimator1.importance(X_full, y)
-    
-    
-    print("Feature\tLOCO_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_loco_nn, std_0_loco_nn)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_0总和: {D* np.mean(phi_0_loco_nn)}")
-    
+    phi_0_loco_nn, se_0_loco_nn = estimator1.importance(X_full, y)
     
 
     phi_0_loco_test_nn = phi_0_loco_nn 
 
-    std_0_loco_test_nn = std_0_loco_nn 
+    se_0_loco_test_nn = se_0_loco_nn 
     
-    z_score_0_loco_nn = phi_0_loco_test_nn / std_0_loco_test_nn
+    z_score_0_loco_nn = phi_0_loco_test_nn / se_0_loco_test_nn
     
     p_value_0_loco_nn = 1 - norm.cdf(z_score_0_loco_nn)
     rounded_p_value_0_loco_nn = np.round(p_value_0_loco_nn, 3)
@@ -1012,16 +881,11 @@ for run in range(1, num_runs + 1):
     
 
     
-    
-    #---------------------------------------------------------------------------------------#
-    #                                       LOCO_X                                          #
-    #---------------------------------------------------------------------------------------#
-    
-    estimator3 = LOCO_Flow_Model_Estimator(
+    estimator3 = SCPI_Flow_Model_Estimator(
      regressor = make_pipeline(
             StandardScaler(),
             MLPRegressor(
-                hidden_layer_sizes=(128,64),
+                hidden_layer_sizes=(16,8),
                 activation="relu",
                 solver="adam",
                 learning_rate_init=1e-3,
@@ -1035,22 +899,13 @@ for run in range(1, num_runs + 1):
     )
 
     
-    phi_x_loco_nn, std_x_loco_nn = estimator3.importance(X_full, y)
+    phi_x_loco_nn, se_x_loco_nn = estimator3.importance(X_full, y)
     
-    
-    print("Feature\tLOCO_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_loco_nn, std_x_loco_nn)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"LOCO_X总和: {D* np.mean(phi_x_loco_nn)}")
-    
-    
-    
-
     phi_x_loco_test_nn = phi_x_loco_nn 
 
-    std_x_loco_test_nn = std_x_loco_nn 
+    se_x_loco_test_nn = se_x_loco_nn 
     
-    z_score_x_loco_nn = phi_x_loco_test_nn / std_x_loco_test_nn
+    z_score_x_loco_nn = phi_x_loco_test_nn / se_x_loco_test_nn
     
     p_value_x_loco_nn = 1 - norm.cdf(z_score_x_loco_nn)
     rounded_p_value_x_loco_nn = np.round(p_value_x_loco_nn, 3)
@@ -1101,8 +956,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_loco_nn)):
             txtfile.write(
-                          f"{phi_0_loco_nn[i]:.6f}\t{std_0_loco_nn[i]:.6f}\t"
-                          f"{phi_x_loco_nn[i]:.6f}\t{std_x_loco_nn[i]:.6f}\n")
+                          f"{phi_0_loco_nn[i]:.6f}\t{se_0_loco_nn[i]:.6f}\t"
+                          f"{phi_x_loco_nn[i]:.6f}\t{se_x_loco_nn[i]:.6f}\n")
 
 
 
@@ -1133,7 +988,7 @@ for run in range(1, num_runs + 1):
         regressor = make_pipeline(
             StandardScaler(),
             MLPRegressor(
-                hidden_layer_sizes=(128,64),
+                hidden_layer_sizes=(16,8),
                 activation="relu",
                 solver="adam",
                 learning_rate_init=1e-3,
@@ -1147,22 +1002,13 @@ for run in range(1, num_runs + 1):
     )
 
     
-    phi_x_dfi_nn, std_x_dfi_nn = estimator4.importance(X_full, y)
+    phi_x_dfi_nn, se_x_dfi_nn = estimator4.importance(X_full, y)
     
-    
-    print("Feature\tDFI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_dfi_nn, std_x_dfi_nn)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"DFI_X总和: {D* np.mean(phi_x_dfi_nn)}")
-    
-    
-    
-   
     phi_x_dfi_test_nn = phi_x_dfi_nn 
 
-    std_x_dfi_test_nn = std_x_dfi_nn 
+    se_x_dfi_test_nn = se_x_dfi_nn 
     
-    z_score_x_dfi_nn = phi_x_dfi_test_nn / std_x_dfi_test_nn
+    z_score_x_dfi_nn = phi_x_dfi_test_nn / se_x_dfi_test_nn
     
     p_value_x_dfi_nn = 1 - norm.cdf(z_score_x_dfi_nn)
     rounded_p_value_x_dfi_nn = np.round(p_value_x_dfi_nn, 3)
@@ -1206,7 +1052,7 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_x\tstd_x\n")
         for i in range(len(phi_x_dfi_nn)):
             txtfile.write(
-                          f"{phi_x_dfi_nn[i]:.6f}\t{std_x_dfi_nn[i]:.6f}\n")
+                          f"{phi_x_dfi_nn[i]:.6f}\t{se_x_dfi_nn[i]:.6f}\n")
 
 
 
@@ -1221,21 +1067,14 @@ for run in range(1, num_runs + 1):
 
 
 
-#########################################################################################################################################################################
-#                                                                           CPI                                                                                        #
-#########################################################################################################################################################################
-
     from Inference.estimators import  CPIEstimator,  CPI_Flow_Model_Estimator
 
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_0                                           #
-    #---------------------------------------------------------------------------------------#
 
     estimator6 = CPIEstimator(
     regressor = make_pipeline(
             StandardScaler(),
             MLPRegressor(
-                hidden_layer_sizes=(128,64),
+                hidden_layer_sizes=(16,8),
                 activation="relu",
                 solver="adam",
                 learning_rate_init=1e-3,
@@ -1248,22 +1087,13 @@ for run in range(1, num_runs + 1):
     )
 
 
-    phi_0_cpi_nn, std_0_cpi_nn = estimator6.importance(X_full, y)
-
-    
-    print("Feature\tCPI_0 φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_0_cpi_nn, std_0_cpi_nn)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_0总和: {D* np.mean(phi_0_cpi_nn)}")
-    
-    
-
+    phi_0_cpi_nn, se_0_cpi_nn = estimator6.importance(X_full, y)
 
     phi_0_cpi_test_nn = phi_0_cpi_nn 
 
-    std_0_cpi_test_nn = std_0_cpi_nn 
+    se_0_cpi_test_nn = se_0_cpi_nn 
 
-    z_score_0_cpi_nn = phi_0_cpi_test_nn / std_0_cpi_test_nn
+    z_score_0_cpi_nn = phi_0_cpi_test_nn / se_0_cpi_test_nn
     
     p_value_0_cpi_nn = 1 - norm.cdf(z_score_0_cpi_nn)
     rounded_p_value_0_cpi_nn = np.round(p_value_0_cpi_nn, 3)
@@ -1272,17 +1102,11 @@ for run in range(1, num_runs + 1):
 
 
 
-
-
-    #---------------------------------------------------------------------------------------#
-    #                                       CPI_X                                           #
-    #---------------------------------------------------------------------------------------#
-
     estimator8 = CPI_Flow_Model_Estimator(
         regressor = make_pipeline(
                 StandardScaler(),
                 MLPRegressor(
-                    hidden_layer_sizes=(128,64),
+                    hidden_layer_sizes=(16,8),
                     activation="relu",
                     solver="adam",
                     learning_rate_init=1e-3,
@@ -1297,21 +1121,13 @@ for run in range(1, num_runs + 1):
     )
     
     
-    phi_x_cpi_nn, std_x_cpi_nn = estimator8.importance(X_full, y)
+    phi_x_cpi_nn, se_x_cpi_nn = estimator8.importance(X_full, y)
     
-    
-    print("Feature\tCPI_X φ\tStdError")
-    for j, (phi_j, se_j) in enumerate(zip(phi_x_cpi_nn, std_x_cpi_nn)):
-        print(f"{j:>3d}\t{phi_j: .4f}\t{se_j: .4f}")
-    print(f"CPI_X总和: {D* np.mean(phi_x_cpi_nn)}")
-    
-    
-
     phi_x_cpi_test_nn = phi_x_cpi_nn 
 
-    std_x_cpi_test_nn = std_x_cpi_nn 
+    se_x_cpi_test_nn = se_x_cpi_nn 
     
-    z_score_x_cpi_nn = phi_x_cpi_test_nn / std_x_cpi_test_nn
+    z_score_x_cpi_nn = phi_x_cpi_test_nn / se_x_cpi_test_nn
     
     
     p_value_x_cpi_nn = 1 - norm.cdf(z_score_x_cpi_nn)
@@ -1361,8 +1177,8 @@ for run in range(1, num_runs + 1):
         txtfile.write("Feature\tphi_0\tstd_0\tphi_x\tstd_x\n")
         for i in range(len(phi_x_cpi_nn)):
             txtfile.write(
-                          f"{phi_0_cpi_nn[i]:.6f}\t{std_0_cpi_nn[i]:.6f}\t"
-                          f"{phi_x_cpi_nn[i]:.6f}\t{std_x_cpi_nn[i]:.6f}\n")
+                          f"{phi_0_cpi_nn[i]:.6f}\t{se_0_cpi_nn[i]:.6f}\t"
+                          f"{phi_x_cpi_nn[i]:.6f}\t{se_x_cpi_nn[i]:.6f}\n")
             
     with open(csv_path_cpi_nn, mode='a', newline='') as f:
         writer = csv.writer(f)
@@ -1373,6 +1189,3 @@ for run in range(1, num_runs + 1):
             round(power_x_cpi, 6), round(type1_x_cpi, 6), int(count_x_cpi),
         ])
     
-
-
-
