@@ -29,8 +29,7 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `MMD_combination.py` and `MMD_sample_size.py` to generate the results.
 
 7. **Exp6**: Implementation of the experiments in Appendix D.4.  
-   Run `computation_time.py` and `computation_time_shapley.py` to generate the computation times for different methods under various sample sizes.
-   
+   Run `computation_time.py` and `computation_time_shapley.py` to generate the results for different methods.
    Use `Exp6_plot.py` to generate the corresponding figures.
 
 8. **Exp7**: Implementation of the experiments in Appendix E.2.  
