@@ -9,7 +9,7 @@ from Inference.utils import *
 def generate_cov_matrix(d: int, rho: float) -> np.ndarray:
 
     cov_matrix = np.fromiter((rho**abs(i-j) for i in range(d) for j in range(d)), dtype=float).reshape(d, d)
-    np.fill_diagonal(cov_matrix, 1.0)  # Set diagonal elements to 1
+    np.fill_diagonal(cov_matrix, 1.0)  
 
     return cov_matrix
 
@@ -23,7 +23,6 @@ def generate_cov_matrix_diag(d: int, rho: float, split_at: int) -> np.ndarray:
     cov_matrix_1 = cov_matrix_full[:split_at, :split_at]
     cov_matrix_2 = cov_matrix_full[split_at:, split_at:]
 
-    # 用 np.zeros 创建空矩阵，并将两块填入主对角线位置
     block_matrix = np.zeros((d, d))
     block_matrix[:split_at, :split_at] = cov_matrix_1
     block_matrix[split_at:, split_at:] = cov_matrix_2
@@ -158,7 +157,7 @@ def generate_cov_matrix_blocked_exp_structure(
 
 class DGP(abc.ABC):
     """Abstract base: needs `.generate(n, rho, seed)` returning X (n×d), y (n)."""
-    d: int  # total feature dimension (W + Z)
+    d: int  
 
     @abc.abstractmethod
     def generate(self, n: int, rho: float, seed: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -170,7 +169,7 @@ from scipy.linalg import sqrtm
 class Example1Linear(DGP):
     β: float = 5.0
     σ_eps: float = 1.0
-    d: int = 10  # W + 9 Z’s  (but only Z1 is correlated)
+    d: int = 10  
 
     def generate(self, n: int, rho: float, seed: int | None = None):
         rng = default_rng(seed)
@@ -178,7 +177,7 @@ class Example1Linear(DGP):
 
         Sigma = Σ
         Sigma_sqrt = sqrtm(Sigma).real
-        Sigma_sqrt_sq = Sigma_sqrt**2   # 元素平方，而不是矩阵平方
+        Sigma_sqrt_sq = Sigma_sqrt**2   
         X = rng.multivariate_normal(np.zeros(self.d), Σ, size=n)
         W = X[:, 0]
         ε = rng.normal(scale=self.σ_eps, size=n)
@@ -206,15 +205,15 @@ class Example2Trig(DGP):
 
 @dataclass
 class Example3Interaction(DGP):
-    d: int = 10  # W + Z1..Z4
-    # σ_eps: float = .7
+    d: int = 10  
+
 
     def generate(self, n: int, rho: float, seed: int | None = None):
         var_ = (26 + 27 * rho ** 2) / 16
         self.σ_eps = np.sqrt(var_ / 9)
 
         rng = default_rng(seed)
-        # Correlate (W,Z1) and (Z3,Z4)
+
         Σ = make_block_cov(self.d, rho, blocks=[(0, 1), (3, 4)])
         X = rng.multivariate_normal(np.zeros(self.d), Σ, size=n)
         W, Z1, Z2, Z3, Z4 = [X[:, i] for i in range(5)]
@@ -228,14 +227,14 @@ class Example3Interaction(DGP):
 class Example4LowDensity(DGP):
     σ_eps: float = 1.0
     σ_δ: float = 1.0
-    d: int = 10  # W + Z1..Z9
+    d: int = 10  
 
     def generate(self, n: int, rho: float, seed: int | None = None):
         rng = default_rng(seed)
         W = rng.normal(size=n)
         δ = rng.normal(scale=self.σ_δ, size=n)
-        Z1 = 3 * W ** 2 + δ  # heavy dependence + low‑density horns
-        Z_rest = rng.normal(size=(n, self.d - 2))  # independent
+        Z1 = 3 * W ** 2 + δ  
+        Z_rest = rng.normal(size=(n, self.d - 2))  
         X = np.column_stack([W, Z1, Z_rest])
         y = 5 * W + rng.normal(scale=self.σ_eps, size=n)
         return X, y
@@ -247,17 +246,15 @@ class Example4LowDensity(DGP):
 
 @dataclass
 class Exp1:
-    d: int = 50   # Total number of features
-    rho: float = 0.6  # Correlation coefficient between features
+    d: int = 50   
+    rho: float = 0.6  
 
     def generate(self, n: int, rho: float, seed: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
-        """Generate data according to the specified model."""
         rng = default_rng(seed)
 
         Sigma = generate_cov_matrix_blocked(self.d, rho, split_at=10, tail_block_size=10)
         X = rng.multivariate_normal(np.zeros(self.d), Sigma, size=n)
 
-        # 取前 5 个变量
         X0, X1, X2, X3, X4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3], X[:, 4]
         ε = rng.normal(scale=1.0, size=n)
 
@@ -352,7 +349,7 @@ class Correcrion_Mixture:
 
       
         if not (0.0 < mix_weight < 1.0):
-            raise ValueError("mix_weight 必须在 (0,1) 内。")
+            raise ValueError("mix_weight has to be within (0,1).")
 
        
         Sigma1 = generate_cov_matrix_blocked(self.d, rho1, split_at=split_at, tail_block_size=tail_block_size)
@@ -380,11 +377,10 @@ class Correcrion_Mixture:
 
 @dataclass
 class Correction_Gaussian:
-    d: int = 10   # Total number of features
-    rho: float = 0.6  # Correlation coefficient between features
+    d: int = 10   
+    rho: float = 0.6  
 
     def generate(self, n: int, rho: float, seed: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
-        """Generate data according to the specified model."""
         rng = default_rng(seed)
 
  
@@ -411,11 +407,10 @@ from scipy.linalg import sqrtm
 
 @dataclass
 class Exp_structure:
-    d: int = 10   # Total number of features
-    rho: float = 0.6  # Correlation coefficient between features
+    d: int = 10   
+    rho: float = 0.6  
 
     def generate(self, n: int, rho: float, seed: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
-        """Generate data according to the specified model."""
         rng = default_rng(seed)
 
       
@@ -459,8 +454,6 @@ class Example_figure:
 
         X0 = X[:, 0]
         X1 = X[:, 1]
-
-
         Y = X0 + X1
 
         return X, Y, Sigma
