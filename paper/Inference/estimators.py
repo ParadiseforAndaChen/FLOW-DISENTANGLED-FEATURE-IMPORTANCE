@@ -1,3 +1,4 @@
+
 from .utils import *
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -162,20 +163,13 @@ class ImportanceEstimator(abc.ABC):
 
         sqn_eff = np.sqrt(len(X))
         if self.n_folds > 1: sqn_eff *= np.sqrt((self.n_folds - 1) / self.n_folds)
-        std = sigma / sqn_eff
+        se = sigma / sqn_eff
 
-        if self.name == "DFI":
-            ueifs_Z = ueifs_Z / n_eifs[:, None]
-            self.ueifs_Z = ueifs_Z
-            id_null_features = np.mean(ueifs_Z, axis=0) < 0
-            ueifs_Z[:, id_null_features] = 0
-            self.phi_Z = np.mean(ueifs_Z, axis=0)
-            self.std_Z = np.std(ueifs_Z, axis=0, ddof=1) / sqn_eff
 
         if j is None:
-            return fi, std
+            return fi, se
         else:
-            return fi[j], std[j]
+            return fi[j], se[j]
 
     def _single_fold_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
         """
@@ -1649,6 +1643,3 @@ class DFIEstimator(DFIZEstimator):
             return phi_X[j], ueif[:,j]
         else:
             return phi_X, ueif
-
-
-
