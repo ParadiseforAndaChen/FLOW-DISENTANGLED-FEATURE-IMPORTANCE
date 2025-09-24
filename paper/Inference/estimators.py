@@ -771,10 +771,6 @@ class CPI_Flow_Model_Estimator(ImportanceEstimator):
         ax.set_ylabel("Features")
 
 
-        # for k in range(0, d+1, block_size):
-        #     ax.axhline(k, color='white', linewidth=1.2)
-        #     ax.axvline(k, color='white', linewidth=1.2)
-
         fig.tight_layout()
 
    
@@ -893,7 +889,6 @@ class SCPIZ_Flow_Model_Estimator(ImportanceEstimator):
                 Z_tilde[:, :, j_idx] = Z[perm_indices, j_idx]
 
             elif self.sampling_method == "normal":
-                # 若 flow 的先验为 N(0, I)，normal 是合理的边际采样
                 Z_tilde[:, :, j_idx] = rng.normal(0, 1, size=(B, n))
 
             elif self.sampling_method == "condperm":
@@ -1146,10 +1141,10 @@ class LOCOEstimator(ImportanceEstimator):
 
         self.mu_reduced = [clone(self.regressor) for _ in range(X.shape[1])]
         if j is not None:
-            # If j is specified, only fit the reduced model for that feature
+
             self.mu_reduced[j].fit(np.delete(X, j, axis=1), y)
         else:
-            # Fit reduced models for all features
+
             for j in range(X.shape[1]):
                 self.mu_reduced[j].fit(np.delete(X, j, axis=1), y)
         
@@ -1157,18 +1152,17 @@ class LOCOEstimator(ImportanceEstimator):
 
     def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
         """Compute LOCO importance for a single feature j."""
-        # Fit full model
+
         pred_full = self.mu_full.predict(X)
         
-        # Fit reduced model without feature j
+
         X_reduced = np.delete(X, j, axis=1)
         pred_reduced = self.mu_reduced[j].predict(X_reduced)
 
-        # uncentered EIF of LOCO
-        ueif = (y - pred_reduced)**2 - (y - pred_full)**2 #(n_samples,)
+
+        ueif = (y - pred_reduced)**2 - (y - pred_full)**2
 
 
-        # Return difference - positive value indicates importance
         loco = float(max(ueif.mean(axis=0), 0.0))
         return loco, ueif
 
@@ -1195,10 +1189,10 @@ class nLOCOEstimator(LOCOEstimator):
 
         self.nu = [clone(self.regressor) for _ in range(X.shape[1])]
         if j is not None:
-            # If j is specified, only fit the conditional model for that feature
+
             self.nu[j].fit(np.delete(X, j, axis=1), X[:, j])
         else:
-            # Fit conditional models for all features
+
             for j in range(X.shape[1]):
                 self.nu[j].fit(np.delete(X, j, axis=1), X[:, j])
             
@@ -1251,43 +1245,40 @@ class dLOCOEstimator(LOCOEstimator):
     def _compute_single_feature_importance(self, X: np.ndarray, y: np.ndarray, j: int) -> Tuple[float, np.ndarray]:
         """Compute dLOCO for feature j with pre-fitted model."""
         n, d = X.shape
-        rng = default_rng(self.random_state + j)  # Different seed per feature
+        rng = default_rng(self.random_state + j)  
 
-        # Sample indices for reference samples
+
         id_j = rng.choice(n, size=min(self.reps, n), replace=False)
-        
-        # Pre-compute all predictions for original X
+
         original_preds = self.mu_full.predict(X[id_j])
 
-         # Initialize array to store average predictions
+
         mu0_j_values = np.zeros(len(id_j))
         
-        # Process in batches
+
         for batch_start in range(0, len(id_j), self.batch_size):
             batch_end = min(batch_start + self.batch_size, len(id_j))
             batch_ids = id_j[batch_start:batch_end]
             current_batch_size = len(batch_ids)
             
-            # Create 3D array: [batch_size, n_samples, n_features]
-            # Each slice is all samples with reference features from one j
+
             Z_batch = np.zeros((current_batch_size, n, d))
             
             for i, j_ref in enumerate(batch_ids):
-                # Fill with reference sample, but keep feature j original
                 Z_batch[i, :, :] = np.tile(X[j_ref:j_ref+1], (n, 1))
                 Z_batch[i, :, j] = X[:, j]
             
-            # Reshape and predict
+
             Z_batch_flat = Z_batch.reshape(-1, d)
             preds_batch = self.mu_full.predict(Z_batch_flat)
             preds_batch = preds_batch.reshape(current_batch_size, n)
             
-            # Average across sample dimension and accumulate
+
             mu0_j_values[batch_start:batch_end] = np.mean(preds_batch, axis=1)
         
-        # Average and compute U-statistic
+
         U_values = (original_preds - mu0_j_values)**2
-        uinf = np.full((n,), np.nan, dtype=float)  # ueif is not used in dLOCO, return empty array
+        uinf = np.full((n,), np.nan, dtype=float)  
         uinf[:U_values.shape[0]] = U_values
         return float(np.mean(U_values)), uinf
 
@@ -1295,7 +1286,7 @@ class dLOCOEstimator(LOCOEstimator):
 
 ###############################################################################
 #
-# Shapley value (approximated by sampling)
+# Shapley value (approximated 
 #
 ###############################################################################
 @dataclass
@@ -1304,28 +1295,25 @@ class ShapleyEstimator(LOCOEstimator):
        training half of each fold and evaluates them on the test half."""
     n_mc: int = 100
     random_state: Optional[int] = 42
-    exact: bool = False  # If True, use exact Shapley value computation
+    exact: bool = False  
     name: str = field(default="Shapley", init=False)
 
-    # ------------------------------------------------------------------ #
-    # 1)  FIT  – called on TRAIN data of the current fold                #
-    # ------------------------------------------------------------------ #
     def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
         self.X_train_ = X
         self.y_train_ = y
         self.d = X.shape[1]
 
-        # full model (not strictly needed but may be handy)
+
         self.mu_full = clone(self.regressor).fit(X, y)
 
-        # empty cache for sub-models keyed by feature tuple
+
         self._model_cache: Dict[Tuple[int, ...], any] = {}
 
         return self
 
     def compute_coalition_and_weight(self, S, j):
-        S = tuple(sorted(S))               # coalition w/out j
-        Sj = tuple(sorted(S + (j,)))       # coalition with j
+        S = tuple(sorted(S))               
+        Sj = tuple(sorted(S + (j,)))       
         size_S = len(S)
         weight = 1 / (math.comb(self.d - 1, size_S) * self.d)
         return (S, Sj), weight
@@ -1334,7 +1322,7 @@ class ShapleyEstimator(LOCOEstimator):
         if feats in self._model_cache:
             return self._model_cache[feats]
 
-        if len(feats) == 0:                 # constant model for empty set
+        if len(feats) == 0:                
             class _MeanModel:
                 def __init__(self, c): self.c = float(c)
                 def predict(self, X): return np.full(len(X), self.c)
@@ -1369,7 +1357,7 @@ class ShapleyEstimator(LOCOEstimator):
 
             rng = default_rng(None if self.random_state is None else self.random_state + j)
             coalitions = sample_coalitions_with_weights(coalitions, weights, self.n_mc, rng)
-            weights = np.ones(len(coalitions)) / len(coalitions)  # uniform weights for sampled coalitions
+            weights = np.ones(len(coalitions)) / len(coalitions) 
         
         def compute_contrib(S: Tuple[int, ...], Sj: Tuple[int, ...]) -> Tuple[float, np.ndarray]:
             mu_S  = self._fit_cached(S)
@@ -1378,7 +1366,7 @@ class ShapleyEstimator(LOCOEstimator):
             pred_S  = mu_S.predict( X_test[:, S]  if len(S)  else X_test )
             pred_Sj = mu_Sj.predict(X_test[:, Sj])
 
-            contrib = (pred_Sj - pred_S) ** 2 #shape (n_test,)
+            contrib = (pred_Sj - pred_S) ** 2 
             psi_r   = contrib.mean()
             return psi_r, contrib
 
@@ -1387,8 +1375,8 @@ class ShapleyEstimator(LOCOEstimator):
         )
 
         psi_draws, contribs = zip(*results)
-        psi_draws = np.array(psi_draws) * weights # shape (n_coalitions,)
-        contribs = np.array(contribs) * weights[:, None] # shape (n_coalitions, n_test)
+        psi_draws = np.array(psi_draws) * weights 
+        contribs = np.array(contribs) * weights[:, None] 
 
         psi_hat = float(np.sum(psi_draws)) 
         ueif = contribs.sum(axis=0) 
@@ -1414,28 +1402,26 @@ class DFIZEstimator(ImportanceEstimator):
     name: str = field(default="DFI_Z", init=False)
     
 
-    mean: np.ndarray | None = field(default=None, init=False)  # Mean of the data
-    cov: np.ndarray | None = field(default=None, init=False)  # Covariance of the data
+    mean: np.ndarray | None = field(default=None, init=False)  
+    cov: np.ndarray | None = field(default=None, init=False)  
     L: np.ndarray | None = field(default=None, init=False)
     L_inv: np.ndarray | None = field(default=None, init=False)
 
-    mu_full: any = field(default=None, init=False)  # Full model fitted 在Z上训练的full model
-    Z_full: np.ndarray | None = field(default=None, init=False) # Full transformed data in Z-space
+    mu_full: any = field(default=None, init=False)  
+    Z_full: np.ndarray | None = field(default=None, init=False) 
     
-    n_samples : int = 50  # Number of samples for permutation
+    n_samples : int = 50  
 
     refit_cov: bool = False  
     refit_mu: bool = True  
 
 
 
-    robust: bool = False  # If True, use robust covariance estimation
-    support_fraction: float = 0.8  # Support fraction for robust covariance estimation
-    sampling_method: str = 'resample'  # 'permutation' or 'normal'
+    robust: bool = False  
+    support_fraction: float = 0.8  
+    sampling_method: str = 'resample'  
     
     def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):        
-        # Estimate covariance and compute whitening transformation
-        # if self.L is None or self.L_inv is None:
         if self.refit_cov or (self.L is None or self.L_inv is None):
             if self.robust:
                 cov = MinCovDet(support_fraction=self.support_fraction, random_state=self.random_state).fit(X)
@@ -1449,10 +1435,9 @@ class DFIZEstimator(ImportanceEstimator):
             eigenvals, eigenvecs = np.linalg.eigh(self.cov)
             eigenvals = np.maximum(eigenvals, self.regularize)
 
-            # L_hat = Σ^{1/2} (whitening matrix)            
+          
             self.L = eigenvecs @ np.diag(eigenvals**0.5) @ eigenvecs.T
         
-            # L_hat^{-1} = Σ^{-1/2} (inverse whitening matrix)
             self.L_inv = eigenvecs @ np.diag(eigenvals**-0.5) @ eigenvecs.T
         
         if self.refit_mu or (self.mu_full is None):
@@ -1486,7 +1471,7 @@ class DFIZEstimator(ImportanceEstimator):
             rng = default_rng(j)
 
 
-            Z_tilde = np.tile(Z[None, :, :], (self.n_samples, 1, 1))  # Shape: (n_samples, n, d)
+            Z_tilde = np.tile(Z[None, :, :], (self.n_samples, 1, 1)) 
 
 
    
@@ -1498,7 +1483,6 @@ class DFIZEstimator(ImportanceEstimator):
 
 
             elif self.sampling_method == 'permutation':
-                # Generate all permutation indices at once for this feature j
                 perm_indices = np.array([rng.permutation(n) for _ in range(self.n_samples)])
                 Z_tilde[:, :, j] = Z[perm_indices, j]
 
@@ -1506,14 +1490,12 @@ class DFIZEstimator(ImportanceEstimator):
                 Z_tilde[:, :, j] = rng.normal(0, 1, size=(self.n_samples, n))
             else:
                 raise ValueError(f"Unknown sampling_method: {self.sampling_method}")
-            # Reshape and predict in batch
+
             Z_tilde_flat = Z_tilde.reshape(-1, d) 
 
-            y_perm_flat = self.mu_full.predict(Z_tilde_flat @ self.L) #(n_samples*n,)
-            y_perm = y_perm_flat.reshape(self.n_samples, n).mean(axis=0) #(n,)
+            y_perm_flat = self.mu_full.predict(Z_tilde_flat @ self.L) 
+            y_perm = y_perm_flat.reshape(self.n_samples, n).mean(axis=0) 
       
-
-
             return y_perm 
 
 
@@ -1547,7 +1529,6 @@ class DFIEstimator(DFIZEstimator):
         self.phi_Z, self.ueifs_Z = self._phi_Z(Z, y)
 
         ueif = self.ueifs_Z @ (self.L ** 2).T
-        #ueif = self.ueifs_Z @ (self.L ** 2)
         phi_X = np.maximum(np.mean(ueif, axis=0), 0.0)
        
 
