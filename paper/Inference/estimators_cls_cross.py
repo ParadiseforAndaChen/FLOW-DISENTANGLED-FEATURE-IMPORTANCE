@@ -17,12 +17,9 @@ from tqdm_joblib import tqdm_joblib
 
 
 
-
-
 @dataclass
 class ImportanceEstimator(abc.ABC):
-    """Interface: `.fit(X, y)` then `.importance(X, y, j=None)` returns scalar or array."""
-    random_state: int = 0
+    random_state: int = 42
     regressor: any = field(default_factory=lambda: RandomForestRegressor(
         n_estimators=500,
         max_depth=None,
@@ -31,27 +28,15 @@ class ImportanceEstimator(abc.ABC):
         n_jobs=-1
     ))
     use_cross_fitting: bool = True
-    n_folds: int = 2  ########
-    name: str = field(init=False)  # Set by subclasses
+    n_folds: int = 2  
+    name: str = field(init=False)  
 
     @abc.abstractmethod
     def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
         ...
 
     def importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]:
-        """
-        Return importance scores.
-        
-        Args:
-            X: Feature matrix
-            y: Target vector
-            j: Feature index. If None, return importance for all features.
-               If int, return importance for feature j only.
-        
-        Returns:
-            If j is None: array of shape [d] with importance for all features
-            If j is int: scalar importance for feature j
-        """
+
         if not self.use_cross_fitting:
             self.n_folds = 1
         return self._cross_fit_importance(X, y, j, **kwargs)
@@ -60,7 +45,7 @@ class ImportanceEstimator(abc.ABC):
     def _cross_fit_importance(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None, **kwargs) -> Union[Tuple[float, float], Tuple[np.ndarray, np.ndarray]]:
         """Cross-fitting procedure to reduce overfitting bias."""
         if self.n_folds < 2:
-            indices = [(np.arange(X.shape[0]), np.arange(X.shape[0]))]  # Single fold, no splitting
+            indices = [(np.arange(X.shape[0]), np.arange(X.shape[0]))]  
         else:
             kf = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
             indices = kf.split(X)
@@ -76,11 +61,11 @@ class ImportanceEstimator(abc.ABC):
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
             
-            # Create a fresh copy of the estimator for this fold
+
             fold_estimator = copy.deepcopy(self)
             fold_estimator.fit(X_train, y_train, j)
             
-            # Evaluate on test fold
+
             fi, ueif = fold_estimator._single_fold_importance(X_test, y_test, j, **kwargs)
 
             ueifs[test_idx, :] += ueif
@@ -88,11 +73,11 @@ class ImportanceEstimator(abc.ABC):
             n_eifs[test_idx] += 1
 
         ueifs = ueifs / n_eifs[:, None]
-        self.ueifs = ueifs # (n,d)
+        self.ueifs = ueifs 
 
         id_null_features = np.mean(ueifs, axis=0) < 0
         ueifs[:, id_null_features] = 0
-        fi = np.nanmean(ueifs, axis=0) # (d,)
+        fi = np.nanmean(ueifs, axis=0) 
         
 
         var = np.nanvar(ueifs, axis=0, ddof=1)   
@@ -136,10 +121,10 @@ class ImportanceEstimator(abc.ABC):
         n, d = X.shape
         
         if j is not None:
-            # Single feature importance
+
             return self._compute_single_feature_importance(X, y, j, **kwargs)
         else:
-            # All features importance
+
             importance_scores = np.zeros(d)
             ueif = np.full_like(X, np.nan, dtype=float)
             
@@ -183,7 +168,6 @@ from sklearn.neural_network import MLPRegressor
 class CPIEstimator_cls_normal(ImportanceEstimator):
 
     name: str = field(default="CPI", init=False)
-
 
     permuter: any = field(
     default_factory=lambda: RandomForestRegressor(
@@ -384,7 +368,6 @@ class CPIZ_Flow_Model_Estimator_cls_normal(ImportanceEstimator):
     random_state: Optional[int] = None
     show_tqdm: bool = True              
 
-    # 概率获取设置（交叉熵版本）
     use_predict_proba_first: bool = True   
     eps: float = 1e-12                     
 
@@ -693,7 +676,6 @@ class CPI_Flow_Model_Estimator_cls_normal(ImportanceEstimator):
         else:
             raise ValueError("p must have shape (n,) or (B, n).")
 
-    # ========== flow 编/解码 ==========
     def _encode_to_Z(self, X: np.ndarray) -> np.ndarray:
         assert self.flow_model is not None, "flow_model is not set."
         import torch
@@ -978,7 +960,6 @@ class LOCOEstimator_cls(ImportanceEstimator):
     mu_reduced: any = field(default=None, init=False)    
     name: str = field(default="LOCO-XEnt", init=False)
 
-    # 标签映射
     classes_: np.ndarray = field(default=None, init=False)
     pos_label_: any = field(default=None, init=False)
     _label_map_: dict = field(default=None, init=False)  
@@ -1380,7 +1361,7 @@ class DFIZEstimator_cls(ImportanceEstimator):
         def per_feature(jj: int) -> np.ndarray:
             rng = default_rng(self.random_state + jj if self.random_state is not None else jj)
 
-            Z_tilde = np.tile(Z[None, :, :], (self.n_samples, 1, 1))   # (B,n,d)
+            Z_tilde = np.tile(Z[None, :, :], (self.n_samples, 1, 1))   
 
             if self.sampling_method == 'resample':
                 res_idx = rng.choice(self.Z_full.shape[0], size=(self.n_samples, n), replace=True)
