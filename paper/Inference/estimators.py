@@ -794,94 +794,6 @@ class CPI_Flow_Model_Estimator(ImportanceEstimator):
 
 
 
-
-###############################################################################
-#
-# LOCO (unnormalized)
-#
-###############################################################################
-
-
-from dataclasses import dataclass, field
-from typing import Optional, Tuple, Union
-import numpy as np
-from sklearn.base import clone
-from tqdm import tqdm
-
-@dataclass
-class LOCOEstimator(ImportanceEstimator):
-
-    mu_full: any = field(default=None, init=False)
-    mu_reduced: list | None = field(default=None, init=False)
-    name: str = field(default="LOCO_Foldwise", init=False)
-    show_tqdm: bool = True  
-
-
-    def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
-        n, d = X.shape
-
-        self.mu_full = clone(self.regressor)
-        self.mu_full.fit(X, y)
-
-        self.mu_reduced = [None for _ in range(d)]
-        if j is not None:
-            X_minus_j = np.delete(X, j, axis=1)
-            m = clone(self.regressor)
-            m.fit(X_minus_j, y)
-            self.mu_reduced[j] = m
-        else:
-            for jj in range(d):
-                X_minus_jj = np.delete(X, jj, axis=1)
-                m = clone(self.regressor)
-                m.fit(X_minus_jj, y)
-                self.mu_reduced[jj] = m
-        return self
-
-
-    def _single_fold_importance(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        j: Optional[int] = None,
-        **kwargs
-    ) -> Union[Tuple[float, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
-        n, d = X.shape
-
-
-        pred_full = self.mu_full.predict(X)            # (n,)
-        base_loss = (y - pred_full) ** 2               # (n,)
-
-        if j is None:
-            pred_reduced_all = np.empty((n, d))
-            it = range(d)
-            if self.show_tqdm and d > 1:
-                it = tqdm(it, desc="Computing reduced predictions", leave=False)
-            for jj in it:
-
-                X_minus_jj = np.delete(X, jj, axis=1)
-                pred_reduced_all[:, jj] = self.mu_reduced[jj].predict(X_minus_jj)
-        else:
-            X_minus_j = np.delete(X, j, axis=1)
-            pred_reduced_j = self.mu_reduced[j].predict(X_minus_j)   # (n,)
-
-        
-        if j is None:
-            ueifs = (y[:, None] - pred_reduced_all) ** 2 - (y - pred_full)[:, None] ** 2  # (n, d)
-            phi_all = np.maximum(np.mean(ueifs, axis=0), 0.0)                             # (d,)
-            return phi_all, ueifs
-        else:
-            ueif_j = (y - pred_reduced_j) ** 2 - (y - pred_full) ** 2                     # (n,)
-            phi_j = float(max(ueif_j.mean(), 0.0))
-            return phi_j, ueif_j
-
-
-    def _compute_single_feature_importance(
-        self, X: np.ndarray, y: np.ndarray, j: int
-    ) -> Tuple[float, np.ndarray]:
-        phi_j, ueif_j = self._single_fold_importance(X, y, j=j)
-        return phi_j, ueif_j
-
-
 ###############################################################################
 #
 # SCPI_Z  Flow 
@@ -1221,7 +1133,7 @@ class SCPI_Flow_Model_Estimator(SCPIZ_Flow_Model_Estimator):
 
 
 @dataclass
-class LOCOEstimator_1(ImportanceEstimator):
+class LOCOEstimator(ImportanceEstimator):
     mu_full: any = field(default=None, init=False)
     mu_reduced: any = field(default=None, init=False)
     name: str = field(default="LOCO", init=False)
@@ -1272,7 +1184,7 @@ class LOCOEstimator_1(ImportanceEstimator):
 #
 ###############################################################################
 @dataclass
-class nLOCOEstimator(LOCOEstimator_1):
+class nLOCOEstimator(LOCOEstimator):
     mu_full: any = field(default=None, init=False)
     mu_reduced: any = field(default=None, init=False)
     nu: any = field(default=None, init=False)
@@ -1317,7 +1229,7 @@ class nLOCOEstimator(LOCOEstimator_1):
 #
 ###############################################################################
 @dataclass
-class dLOCOEstimator(LOCOEstimator_1):
+class dLOCOEstimator(LOCOEstimator):
     reps: int = 1000
     batch_size: int = 32
     mu_full: any = field(default=None, init=False)
@@ -1387,7 +1299,7 @@ class dLOCOEstimator(LOCOEstimator_1):
 #
 ###############################################################################
 @dataclass
-class ShapleyEstimator(LOCOEstimator_1):
+class ShapleyEstimator(LOCOEstimator):
     """Honest Shapley estimator that refits μ̂_S and μ̂_{S∪{j}} on the
        training half of each fold and evaluates them on the test half."""
     n_mc: int = 100
