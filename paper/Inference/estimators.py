@@ -712,6 +712,7 @@ class CPI_Flow_Model_Estimator(ImportanceEstimator):
 
         H_array = np.stack(S_list, axis=0)  
         self.H_ = H_array.mean(axis=0)
+        self.H_ = self.H_.T
 
 
         return (self.H_, H_array) if return_array else self.H_
