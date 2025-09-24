@@ -20,6 +20,10 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Use `Exp3_plot.py` to generate the corresponding figures.
 
 4. **Real_data/CTG**: Implementation of the experiments in Section 4.3 and Appendix E.3.1.  
-   Run `CTG.ipynb` to execute the experiments and obtain the corresponding results and figures. 
+   Run `CTG.ipynb` to execute the experiments and obtain the corresponding results and figures.
+
+5. **Exp4**: Implementation of the experiments in Appendix D.3.1.  
+   Run `Correction.ipynb` to generate the results and plot the figure.  
+
 
 
