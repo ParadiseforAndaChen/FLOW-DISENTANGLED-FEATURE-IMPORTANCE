@@ -6,7 +6,7 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
 - [MicroMass](https://archive.ics.uci.edu/dataset/253/micromass)  
 
 ## Description
-### Description of folders
+### Description of folders in **paper**
 1. **Exp1**: Implementation of the experiments in Section 4.1.  
    Run `Exp1.py` to evaluate different combinations of sample size and $\rho$.  
    Use `Exp1_plot.py` to generate the corresponding figures.
