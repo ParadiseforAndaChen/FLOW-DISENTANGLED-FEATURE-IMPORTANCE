@@ -33,9 +33,9 @@ batch_sizes  = [32, 64, 128, 256, 384]
 hidden_dims  = [64, 128, 256, 384]               
 test_size = 0.5      
 rho = 0.8
-repeat_runs = 15     
+repeat_runs = 50     
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
 
 
 results_per_combo = {
