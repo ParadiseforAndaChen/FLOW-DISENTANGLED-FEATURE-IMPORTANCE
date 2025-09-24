@@ -8,8 +8,14 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
 ## Description
 ### Description of folders
 1. **Exp1**: Implementation of the experiments in Section 4.1.  
-   Run `Exp1.py` to use different combinations of sample size and $\rho$.  
-   For summarizing the final results, run `Exp1_plot.py` to generate the corresponding figures.  
+   Run `Exp1.py` to evaluate different combinations of sample size and $\rho$.  
+   Use `Exp1_plot.py` to generate the corresponding figures.
+
 2. **Exp2**: Implementation of the experiments in Section 4.2.  
-   Run `Exp2.py` with the provided settings to reproduce the benchmark comparisons.  
-   Use `Exp2_plot.py` to visualize and analyze the results. 
+   Run `Exp2.py` with the provided settings to reproduce the benchmark comparisons on complex feature distributions.  
+   Use `Exp2_plot.py` to generate the corresponding figures.
+
+3. **Exp3**: Implementation of the experiments in Appendix E.1.  
+   Run `Exp3.py` with the provided settings to reproduce the benchmark comparisons with different predictors.  
+   Use `Exp3_plot.py` to generate the corresponding figures.
+
