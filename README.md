@@ -33,5 +33,8 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    
    Use `Exp6_plot.py` to generate the corresponding figures.
 
+8. **Exp7**: Implementation of the experiments in Appendix E.2.  
+   Run `map.py` to generate the result and corresponding figure.
+
 
 
