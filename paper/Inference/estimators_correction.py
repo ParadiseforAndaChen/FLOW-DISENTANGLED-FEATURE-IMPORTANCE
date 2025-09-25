@@ -1,3 +1,4 @@
+
 from .utils import *
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -282,9 +283,9 @@ class CPI_Flow_Model_Estimator_correction_new(
 
     n_jobs_jac: int = 30
     prefer_backend: str = "threads"  
-    s_mean_max_samples: int = 0
-    lock_S_mean: bool = True  
-    S_mean_: Optional[np.ndarray] = field(default=None, init=False)  
+    H_max_samples: int = 0
+    lock_H: bool = True  
+    H_: Optional[np.ndarray] = field(default=None, init=False)  
 
     Z_full: Optional[np.ndarray] = field(default=None, init=False)
 
@@ -298,9 +299,9 @@ class CPI_Flow_Model_Estimator_correction_new(
         if self.flow_model is None:
             raise RuntimeError("flow_model is not set.")
 
-    def reset_S_mean(self):
+    def reset_H(self):
 
-        self.S_mean_ = None
+        self.H_ = None
 
     def _encode_to_Z(self, X: np.ndarray, flow=None) -> np.ndarray:
         assert (flow or self.flow_model) is not None, "flow_model is not set."
@@ -325,12 +326,12 @@ class CPI_Flow_Model_Estimator_correction_new(
         J = flow.Jacobi_N(y0=y0)  # (D, D)
         return J ** 2
 
-    def _compute_S_mean(self, Z: np.ndarray) -> np.ndarray:
+    def _compute_H(self, Z: np.ndarray) -> np.ndarray:
         n, D = Z.shape
 
-        if 0 < self.s_mean_max_samples < n:
+        if 0 < self.H_max_samples < n:
             rng = np.random.default_rng(self.random_state)
-            idx = rng.choice(n, self.s_mean_max_samples, replace=False)
+            idx = rng.choice(n, self.H_max_samples, replace=False)
             Z_sub = Z[idx]
         else:
             Z_sub = Z
@@ -351,8 +352,8 @@ class CPI_Flow_Model_Estimator_correction_new(
                 delayed(_jac_square)(z) for z in Z_sub
             )
 
-        S_array = np.stack(S_list, axis=0)  
-        return S_array.mean(axis=0)        
+        H_array = np.stack(S_list, axis=0)  
+        return H_array.mean(axis=0)        
 
     def fit(self, X: np.ndarray, y: np.ndarray, j: Optional[int] = None):
         assert self.flow_model is not None, "flow_model is not set."
@@ -365,8 +366,8 @@ class CPI_Flow_Model_Estimator_correction_new(
         else:
             self.Z_full = None
 
-        if not self.lock_S_mean:
-            self.S_mean_ = None 
+        if not self.lock_H:
+            self.H_ = None 
         self.ueifs_raw_matrix_ = None
         self.ueifs_raw_cols_.clear()
         return self
@@ -432,16 +433,16 @@ class CPI_Flow_Model_Estimator_correction_new(
             avg_loss_per_sample = delta.mean(axis=0)  
             ueifs[:, jj] = 0.5 * avg_loss_per_sample
 
-        need_recompute = (self.S_mean_ is None) or (not self.lock_S_mean and j is None)
+        need_recompute = (self.H_ is None) or (not self.lock_H and j is None)
         if need_recompute:
             t0 = time.time()
-            self.S_mean_ = self._compute_S_mean(Z)  
+            self.H_ = self._compute_H(Z)  
             t1 = time.time()
-            print(f"[S_mean] computed in {t1 - t0:.3f}s; Fro={np.linalg.norm(self.S_mean_):.4f}")
+            print(f"[H] computed in {t1 - t0:.3f}s; Fro={np.linalg.norm(self.H_):.4f}")
         else:
-            print("[S_mean] cached, skip computing.")
+            print("[H] cached, skip computing.")
 
-        ueifs_mapped = ueifs @ self.S_mean_.T   
+        ueifs_mapped = ueifs @ self.H_.T   
 
         if j is None:
             self.ueifs_raw_matrix_ = ueifs.copy()
@@ -906,5 +907,3 @@ class DFIEstimator(DFIZEstimator):
             return phi_X[j], ueif[:,j]
         else:
             return phi_X, ueif
-
-
