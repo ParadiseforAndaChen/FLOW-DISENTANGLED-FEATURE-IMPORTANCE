@@ -292,7 +292,7 @@ class CPI_Flow_Model_Estimator_correction_new(
     ueifs_raw_matrix_: Optional[np.ndarray] = field(default=None, init=False)  
     ueifs_raw_cols_: Dict[int, np.ndarray] = field(default_factory=dict, init=False)  
 
-    # ======================= 工具函数 =======================
+
     def _ensure_fitted(self):
         if not hasattr(self, "mu_hat"):
             raise RuntimeError("Estimator is None, fit(X, y)。")
