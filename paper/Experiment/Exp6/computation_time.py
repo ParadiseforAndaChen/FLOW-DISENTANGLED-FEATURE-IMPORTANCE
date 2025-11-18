@@ -45,20 +45,22 @@ for run in range(1, num_runs + 1):
     X_full_train, y_train = Exp2().generate(n=3000, rho1=rho1, rho2=rho2, seed=seed, mix_weight=mix_weight)
 
     D = X_full_train.shape[1]
-    n_jobs = 20
+    n_jobs = -1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = FlowMatchingModel(
         X=X_full_train,
         dim=D,
         device=device,
-        hidden_dim=96,
+        hidden_dim=128,
         time_embed_dim=64,
         num_blocks=1,
         use_bn=False
     )
-
+    start_time = time.time()
     model.fit(num_steps=15000, batch_size=256, lr=1e-3, show_plot=False)
+    end_time = time.time()
+    elapsed = end_time - start_time
 
   
     X_full, y = Exp2().generate(n=1000, rho1=rho1, rho2=rho2, seed=seed, mix_weight=mix_weight)
@@ -163,7 +165,7 @@ for run in range(1, num_runs + 1):
     t0 = time.perf_counter()
     phi_z_cpi, se_z_cpi = estimator6.importance(X_full, y)
     t1 = time.perf_counter()
-    time_FDFI_Z = t1 - t0
+    time_FDFI_Z = t1 - t0 + elapsed
     print(f"[FDFI_Z] time: {time_FDFI_Z:.3f} s")
 
     # --- FDFI ---
@@ -182,7 +184,7 @@ for run in range(1, num_runs + 1):
     t0 = time.perf_counter()
     phi_x_cpi, se_x_cpi = estimator7.importance(X_full, y)
     t1 = time.perf_counter()
-    time_FDFI = t1 - t0
+    time_FDFI = t1 - t0 + elapsed
     print(f"[FDFI] time: {time_FDFI:.3f} s")
 
 
