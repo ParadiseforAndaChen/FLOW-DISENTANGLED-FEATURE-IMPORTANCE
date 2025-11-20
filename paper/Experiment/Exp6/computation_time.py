@@ -42,7 +42,7 @@ for run in range(1, num_runs + 1):
     mix_weight = 0.2
 
  
-    X_full_train, y_train = Exp2().generate(n=3000, rho1=rho1, rho2=rho2, seed=seed, mix_weight=mix_weight)
+    X_full_train, y_train = Exp2().generate(n=1000, rho1=rho1, rho2=rho2, seed=seed, mix_weight=mix_weight)
 
     D = X_full_train.shape[1]
     n_jobs = -1
@@ -58,7 +58,7 @@ for run in range(1, num_runs + 1):
         use_bn=False
     )
     start_time = time.time()
-    model.fit(num_steps=15000, batch_size=256, lr=1e-3, show_plot=False)
+    model.fit(num_steps=5000, batch_size=256, lr=1e-3, show_plot=False)
     end_time = time.time()
     elapsed = end_time - start_time
 
