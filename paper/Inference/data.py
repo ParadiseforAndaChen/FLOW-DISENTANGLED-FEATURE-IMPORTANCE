@@ -460,6 +460,120 @@ class Example_figure:
 
 
 
+def gaussian_to_t(Z: np.ndarray, df: float, rng: np.random.Generator | None = None) -> np.ndarray:
+    if rng is None:
+        rng = default_rng()
+    n, d = Z.shape
+    W = rng.chisquare(df, size=n)      
+    scale = np.sqrt(df / W)[:, None]    
+
+    X = Z * scale
+    return X
+
+
+def generate_cov_matrix_blocked_rho_ij(
+    d: int,
+    rho: float,
+    split_at: int,
+    tail_block_size: int = 10,
+    return_blocks: bool = False,
+) -> np.ndarray | Tuple[np.ndarray, List[int]]:
+
+    if split_at <= 0 or split_at > d:
+        raise ValueError("split_at must be in (0, d].")
+
+    if not (-1.0 < rho < 1.0):
+        print("[Warning] ")
+
+    tail_dim = d - split_at
+    blocks: List[int] = [split_at]
+    if tail_dim > 0:
+        k, rem = divmod(tail_dim, tail_block_size)
+        blocks.extend([tail_block_size] * k)
+        if rem > 0:
+            blocks.append(rem)
+
+    Sigma = np.zeros((d, d), dtype=float)
+    start = 0
+    for bsz in blocks:
+        idx = np.arange(bsz)
+        B = rho ** np.abs( (idx[:, None] - idx[None, :]) / 5 ) 
+        Sigma[start:start + bsz, start:start + bsz] = B
+        start += bsz
+
+    if return_blocks:
+        return Sigma, blocks
+    else:
+        return Sigma
+
+
+@dataclass
+class Exp_SIM:
+    d: int = 50       
+
+    def generate(
+        self,
+        n: int,
+        seed: int | None = None,
+        rho1: float | None = None,
+        rho2: float | None = None,
+        mix_weight: float = 0.2,
+        df: float = 5.0,
+        split_at: int = 10,
+        tail_block_size: int = 10,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+        rng = default_rng(seed)
+
+
+        if rho1 is None:
+            rho1 = self.rho      
+        if rho2 is None:
+            rho2 = 0.2            
+
+        if not (0.0 < mix_weight < 1.0):
+            raise ValueError("mix_weight has to be within (0,1).")
+        Sigma1 = generate_cov_matrix_blocked(
+            d=self.d,
+            rho=rho1,
+            split_at=split_at,
+            tail_block_size=tail_block_size,
+        )
+        Sigma2 = generate_cov_matrix_blocked(
+            d=self.d,
+            rho=rho2,
+            split_at=split_at,
+            tail_block_size=tail_block_size,
+        )
+        comp = rng.binomial(n=1, p=mix_weight, size=n)
+        Z = np.empty((n, self.d), dtype=float)
+        idx1 = np.where(comp == 1)[0]
+        idx2 = np.where(comp == 0)[0]
+
+        if idx1.size > 0:
+            Z[idx1] = rng.multivariate_normal(
+                mean=np.zeros(self.d),
+                cov=Sigma1,
+                size=idx1.size,
+            )
+        if idx2.size > 0:
+            Z[idx2] = rng.multivariate_normal(
+                mean=np.zeros(self.d),
+                cov=Sigma2,
+                size=idx2.size,
+            )
+
+        X = gaussian_to_t(Z, df=df, rng=rng)
+
+        X0, X1, X2, X3, X4 = X[:, 0], X[:, 1], X[:, 2], X[:, 3], X[:, 4]
+        eps = rng.normal(scale=1.0, size=n)
+
+        y = (np.arctan(X0 + X1) * (X2 > 0)) + (np.sin(X3 * X4) * (X2 < 0)) + eps
+
+        return X, y
+
+
+
 
 
         
