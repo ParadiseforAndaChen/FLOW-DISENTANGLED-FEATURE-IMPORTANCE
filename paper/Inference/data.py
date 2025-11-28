@@ -15,6 +15,7 @@ def generate_cov_matrix(d: int, rho: float) -> np.ndarray:
 
 
 
+
 def generate_cov_matrix_diag(d: int, rho: float, split_at: int) -> np.ndarray:
 
     cov_matrix_full = np.fromiter((rho**abs(i-j) for i in range(d) for j in range(d)), dtype=float).reshape(d, d)
