@@ -50,5 +50,9 @@ We use these real-world open-source datasets to illustrate how our method can be
 12. **Real_data/Human**: Implementation of the experiments in Section 4.2 and Appendix E.2.5.  
    Run `Human.ipynb` to execute the experiments and obtain the corresponding results.
 
+13. **Real_data/DCCC**: Implementation of the experiments in Appendix E.2.4.  
+   Run `DCCC.ipynb` to execute the experiments and obtain the corresponding results.
 
+14. **Real_data/Superconduct**: Implementation of the experiments in Appendix E.2.4.  
+   Run `Superconduct.ipynb` to execute the experiments and obtain the corresponding results.
 
