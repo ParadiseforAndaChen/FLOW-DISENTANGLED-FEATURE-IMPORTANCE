@@ -1,5 +1,5 @@
 # FLOW-DISENTANGLED-FEATURE-IMPORTANCE
-We use seven real-world open-source datasets in our experiments: **Pima Indians Diabetes(PID)**, **Cardiotocography (CTG)**, **MicroMass**, **TCGA-PANCAN-HiSeq bulk RNA-seq** and **Human single-cell RNA-seq** . All of them are publicly available and can be downloaded from the following links:  
+We use these real-world open-source datasets to illustrate how our method can be applied in practice and to demonstrate the complete workflow of our implementation. : **Pima Indians Diabetes(PID)**, **Cardiotocography (CTG)**, **MicroMass**, **TCGA-PANCAN-HiSeq bulk RNA-seq** and **Human single-cell RNA-seq** . All of them are publicly available and can be downloaded from the following links:  
 
 - [Pima Indians Diabetes(PID)](https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database)  
 - [Cardiotocography (CTG)](https://archive.ics.uci.edu/dataset/193/cardiotocography)  
