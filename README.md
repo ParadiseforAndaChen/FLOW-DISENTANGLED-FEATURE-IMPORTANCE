@@ -20,13 +20,13 @@ We use these real-world open-source datasets to illustrate how our method can be
    Run `Exp3.py` with the provided settings to reproduce the benchmark comparisons with different predictors.  
    Use `Exp3_plot.py` to generate the corresponding figures.
 
-4. **Real_data/CTG**: Implementation of the experiments in Section 4.3 and Appendix E.3.1.  
+4. **Real_data/CTG**: Implementation of the experiments in Section 4.3 and Appendix E.2.1.  
    Run `CTG.ipynb` to execute the experiments and obtain the corresponding results and figures.
 
-5. **Real_data/PID**: Implementation of the experiments in Appendix E.3.2.  
+5. **Real_data/PID**: Implementation of the experiments in Appendix E.2.2.  
    Run `PID.ipynb` to execute the experiments and obtain the corresponding results and figures.
 
-6. **Real_data/MicroMass**: Implementation of the experiments in Appendix E.3.3.  
+6. **Real_data/MicroMass**: Implementation of the experiments in Appendix E.2.3.  
    Run `MicroMass.ipynb` to execute the experiments and obtain the corresponding results and figures.
 
 7. **Exp4**: Implementation of the experiments in Appendix D.3.1.  
@@ -41,6 +41,12 @@ We use these real-world open-source datasets to illustrate how our method can be
 
 10. **Exp7**: Implementation of the experiments in Appendix E.1.2.  
    Run `map.py` to generate the result and the figure.
+
+11. **Real_data/TCGA**: Implementation of the experiments in Section 4.2 and Appendix E.2.5.  
+   Run `TCGA.ipynb` to execute the experiments and obtain the corresponding results.
+
+12. **Real_data/Human**: Implementation of the experiments in Section 4.2 and Appendix E.2.5.  
+   Run `Human.ipynb` to execute the experiments and obtain the corresponding results.
 
 
 
