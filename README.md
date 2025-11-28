@@ -11,11 +11,11 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `Exp1.py` to evaluate different combinations of sample size and $\rho$.  
    Use `Exp1_plot.py` to generate the corresponding figures.
 
-2. **Exp2**: Implementation of the experiments in Section 4.2.  
+2. **Exp2**: Implementation of the experiments in Appendix E.1.3.  
    Run `Exp2.py` with the provided settings to reproduce the benchmark comparisons on complex feature distributions.  
    Use `Exp2_plot.py` to generate the corresponding figures.
 
-3. **Exp3**: Implementation of the experiments in Appendix E.1.  
+3. **Exp3**: Implementation of the experiments in Appendix E.1.1.  
    Run `Exp3.py` with the provided settings to reproduce the benchmark comparisons with different predictors.  
    Use `Exp3_plot.py` to generate the corresponding figures.
 
@@ -38,7 +38,7 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
    Run `computation_time.py` and `computation_time_shapley.py` to generate the results for different methods.  
    Use `Exp6_plot.py` to generate the corresponding figures.
 
-10. **Exp7**: Implementation of the experiments in Appendix E.2.  
+10. **Exp7**: Implementation of the experiments in Appendix E.1.2.  
    Run `map.py` to generate the result and the figure.
 
 
