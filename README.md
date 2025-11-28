@@ -3,8 +3,9 @@ We use three real-world open-source datasets in our experiments: **Pima Indians 
 
 - [Pima Indians Diabetes(PID)](https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database)  
 - [Cardiotocography (CTG)](https://archive.ics.uci.edu/dataset/193/cardiotocography)  
-- [MicroMass](https://archive.ics.uci.edu/dataset/253/micromass)  
-
+- [MicroMass](https://archive.ics.uci.edu/dataset/253/micromass)
+- [TCGA-PANCAN-HiSeq bulk RNA-seq dataset](https://archive.ics.uci.edu/dataset/401/gene+expression+cancer+rna+seq) 
+- [human single-cell RNA-seq dataset](https://www.pnas.org/doi/10.1073/pnas.2104683118) 
 ## Description
 ### Description of folders in **paper**
 1. **Exp1**: Implementation of the experiments in Section 4.1.  
